@@ -1,6 +1,8 @@
 extends Node
 
 const ScriptRuntimeManagerScript = preload("res://systems/ScriptRuntimeManager.gd")
+const LanguageBackendFactoryScript = preload("res://interpreter/runtime/language_backend_factory.gd")
+const CLikeRuntimeBackendScript = preload("res://interpreter/runtime/c_like_runtime_backend.gd")
 
 signal result_closed
 
@@ -21,6 +23,8 @@ func _ready() -> void:
 	var manager := ScriptRuntimeManagerScript.new()
 	add_child(manager)
 
+	_test_language_backend_factory()
+	await _test_language_routing(manager)
 	await _test_await_requires_stock(manager)
 	FeatureManager.unlock_feature(FeatureManager.FEATURE_STOCK)
 	await _test_infinite_print_does_not_freeze(manager)
@@ -44,6 +48,38 @@ func _ready() -> void:
 	manager.queue_free()
 	await get_tree().process_frame
 	get_tree().quit()
+
+
+func _test_language_backend_factory() -> void:
+	var backend: Node = LanguageBackendFactoryScript.create("c_like")
+	_check(backend != null and backend.get_script() == CLikeRuntimeBackendScript, "Factory deve criar o backend C-like.")
+	if backend != null:
+		backend.free()
+	_check(LanguageBackendFactoryScript.create("python_like") == null, "Factory não deve criar backend para linguagem desconhecida.")
+
+
+func _test_language_routing(manager) -> void:
+	var runtime_id: String = manager.start_script("default_language", "int main(){ print(\"ok\"); }", "DefaultLanguage")
+	await _wait_until_not_running(manager, "default_language")
+	var runtime: Dictionary = manager.get_runtime(runtime_id)
+	_check(str(runtime.get("language", "")) == "c_like", "Ausência de linguagem deve usar C-like.")
+	_check(str(runtime.get("status", "")) == ScriptRuntimeManager.STATUS_FINISHED, "Script C-like simples deve continuar executando.")
+
+	_debug_text = ""
+	var runtime_count: int = manager.get_all_runtimes().size()
+	var unknown_id: String = manager.start_script("unknown_language", "int main(){}", "UnknownLanguage", null, "python_like")
+	_check(unknown_id.is_empty(), "Linguagem sem backend deve falhar sem iniciar runtime.")
+	_check(manager.get_all_runtimes().size() == runtime_count, "Falha de backend não deve criar runtime parcial.")
+	_check(_debug_text.contains("python_like"), "Falha de backend deve identificar a linguagem desconhecida.")
+
+	var active_script := InterpreterSystem.get_active_script()
+	var original_language := str(active_script.get("language", "c_like"))
+	active_script["language"] = "python_like"
+	_debug_text = ""
+	var active_runtime_id := InterpreterSystem.start_active_script(EnvContext.new([], 0, []))
+	active_script["language"] = original_language
+	_check(active_runtime_id.is_empty(), "InterpreterSystem deve propagar a linguagem explícita do documento ativo.")
+	_check(_debug_text.contains("python_like"), "Erro de roteamento do documento ativo deve preservar a linguagem explícita.")
 
 
 func _test_infinite_print_does_not_freeze(manager) -> void:

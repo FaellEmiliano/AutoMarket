@@ -1,6 +1,8 @@
 extends Node
 class_name ScriptRuntimeManager
 
+const BackendFactory = preload("res://interpreter/runtime/language_backend_factory.gd")
+
 signal runtime_started(runtime_id, script_id)
 signal runtime_stopped(runtime_id, script_id)
 signal runtime_finished(runtime_id, script_id)
@@ -24,35 +26,38 @@ var operations_per_frame_per_script := OPERATIONS_PER_FRAME_PER_SCRIPT
 var global_operations_per_frame := GLOBAL_OPERATIONS_PER_FRAME
 
 
-func start_script(script_id: String, source: String, script_name: String, context: Variant = null) -> String:
-	if is_script_running(script_id):
-		return str(_running_runtime_by_script_id[script_id])
-	_clear_inactive_runtime_outputs()
-	_clear_previous_runtimes_for_script(script_id)
-
-	var runtime_id := _generate_runtime_id()
+func start_script(script_id: String, source: String, script_name: String, context: Variant = null,
+		language_id: String = BackendFactory.DEFAULT_LANGUAGE_ID) -> String:
 	var display_name := script_name.strip_edges()
 	if display_name.is_empty():
 		display_name = script_id
 
-	var interpreter := Interpreter.new()
-	interpreter.emit_debug_to_eventbus = false
-	interpreter.scheduler_managed = true
-	interpreter.set_source_name(display_name)
-	interpreter.sleep_requested.connect(_on_runtime_sleep_requested.bind(runtime_id))
-	add_child(interpreter)
-	var executor: Executor = interpreter.get("executor")
-	executor.runtime_id = runtime_id
-	executor.script_id = script_id
+	var backend: Node = BackendFactory.create(language_id)
+	if backend == null:
+		var message := "Linguagem sem backend: '%s'." % language_id
+		push_warning(message)
+		EventBus.emit_signal("send_debug", "[%s] %s" % [display_name, message])
+		return ""
+	if is_script_running(script_id):
+		backend.free()
+		return str(_running_runtime_by_script_id[script_id])
+
+	_clear_inactive_runtime_outputs()
+	_clear_previous_runtimes_for_script(script_id)
+
+	var runtime_id := _generate_runtime_id()
+	backend.configure_runtime(runtime_id, script_id, display_name)
+	backend.sleep_requested.connect(_on_runtime_sleep_requested.bind(runtime_id))
+	add_child(backend)
 
 	var runtime := {
 		"runtime_id": runtime_id,
 		"script_id": script_id,
 		"script_name": display_name,
+		"language": language_id,
 		"source": str(source),
 		"status": STATUS_RUNNING,
-		"executor": executor,
-		"interpreter": interpreter,
+		"backend": backend,
 		"output": "",
 		"error": "",
 		"cancel_requested": false,
@@ -67,16 +72,16 @@ func start_script(script_id: String, source: String, script_name: String, contex
 	_running_runtime_by_script_id[script_id] = runtime_id
 	_runtime_order.append(runtime_id)
 
-	interpreter.output_changed.connect(_on_runtime_output_changed.bind(runtime_id))
-	interpreter.execution_finished.connect(_on_runtime_execution_finished.bind(runtime_id))
-	interpreter.execution_error.connect(_on_runtime_execution_error.bind(runtime_id))
+	backend.output_changed.connect(_on_runtime_output_changed.bind(runtime_id))
+	backend.execution_finished.connect(_on_runtime_execution_finished.bind(runtime_id))
+	backend.execution_error.connect(_on_runtime_execution_error.bind(runtime_id))
 
 	emit_signal("runtime_started", runtime_id, script_id)
 	emit_signal("runtimes_changed")
-	interpreter.run(str(source), _clone_context(context))
+	backend.start_source(str(source), _clone_context(context))
 
-	if not interpreter.executor_flag and runtime.get("status") == STATUS_RUNNING:
-		if interpreter.tem_erros():
+	if not backend.is_execution_active() and runtime.get("status") == STATUS_RUNNING:
+		if backend.has_errors():
 			_mark_runtime_error(runtime_id, str(runtime.get("output", "")))
 		else:
 			_mark_runtime_finished(runtime_id)
@@ -107,9 +112,9 @@ func _clear_previous_runtimes_for_script(script_id: String) -> void:
 			continue
 		if _is_runtime_active(runtime):
 			continue
-		var interpreter: Interpreter = runtime.get("interpreter")
-		if interpreter != null:
-			interpreter.queue_free()
+		var backend: Node = runtime.get("backend")
+		if backend != null:
+			backend.queue_free()
 		_runtimes_by_id.erase(runtime_id)
 		_runtime_order.remove_at(i)
 		removed = true
@@ -135,9 +140,9 @@ func _stop_runtime_now(runtime_id: String) -> void:
 	runtime["finished_at"] = Time.get_unix_time_from_system()
 	_running_runtime_by_script_id.erase(str(runtime.get("script_id", "")))
 
-	var interpreter: Interpreter = runtime.get("interpreter")
-	if interpreter != null:
-		interpreter.stop_execution()
+	var backend: Node = runtime.get("backend")
+	if backend != null:
+		backend.stop_execution()
 
 	_set_runtime_output(runtime_id, "[%s] Automacao parada" % str(runtime.get("script_name", "")))
 	emit_signal("runtime_stopped", runtime_id, str(runtime.get("script_id", "")))
@@ -165,9 +170,9 @@ func reset() -> void:
 	stop_all()
 	for runtime_id in _runtime_order:
 		var runtime: Dictionary = _runtimes_by_id.get(runtime_id, {})
-		var interpreter: Interpreter = runtime.get("interpreter")
-		if interpreter != null:
-			interpreter.queue_free()
+		var backend: Node = runtime.get("backend")
+		if backend != null:
+			backend.queue_free()
 	_runtimes_by_id.clear()
 	_running_runtime_by_script_id.clear()
 	_runtime_order.clear()
@@ -237,20 +242,16 @@ func _process(_delta: float) -> void:
 			_stop_runtime_now(runtime_id)
 			continue
 
-		var interpreter: Interpreter = runtime.get("interpreter")
-		if interpreter == null:
-			_mark_runtime_error(runtime_id, "Runtime sem interpretador ativo.")
-			continue
-		var executor: Executor = runtime.get("executor")
-		if executor == null:
-			_mark_runtime_error(runtime_id, "Runtime sem executor ativo.")
+		var backend: Node = runtime.get("backend")
+		if backend == null:
+			_mark_runtime_error(runtime_id, "Runtime sem backend ativo.")
 			continue
 
 		var budget: int = mini(maxi(1, operations_per_frame_per_script), operations_left)
-		interpreter.begin_scheduler_frame()
-		var operations := interpreter.execute_operation_budget(budget)
-		interpreter.end_scheduler_frame()
-		var requested_sleep := interpreter.consume_sleep_request()
+		backend.begin_scheduler_frame()
+		var operations: int = backend.execute_operation_budget(budget)
+		backend.end_scheduler_frame()
+		var requested_sleep: bool = backend.consume_sleep_request()
 
 		runtime["operations_last_frame"] = operations
 		runtime["operations_total"] = int(runtime.get("operations_total", 0)) + operations
@@ -259,11 +260,11 @@ func _process(_delta: float) -> void:
 		if runtime.get("status") != STATUS_RUNNING:
 			continue
 
-		if interpreter.tem_erros():
+		if backend.has_errors():
 			_mark_runtime_error(runtime_id, str(runtime.get("output", "")))
 		elif requested_sleep:
 			continue
-		elif not interpreter.executor_flag or executor.is_finished:
+		elif not backend.is_execution_active() or backend.is_finished():
 			_mark_runtime_finished(runtime_id)
 
 
@@ -289,8 +290,8 @@ func _on_runtime_execution_finished(runtime_id: String) -> void:
 	if runtime.is_empty() or runtime.get("status") != STATUS_RUNNING:
 		return
 
-	var interpreter: Interpreter = runtime.get("interpreter")
-	if interpreter != null and interpreter.tem_erros():
+	var backend: Node = runtime.get("backend")
+	if backend != null and backend.has_errors():
 		_mark_runtime_error(runtime_id, str(runtime.get("output", "")))
 	else:
 		_mark_runtime_finished(runtime_id)
@@ -366,6 +367,7 @@ func _runtime_view(runtime: Dictionary) -> Dictionary:
 		"runtime_id": str(runtime.get("runtime_id", "")),
 		"script_id": str(runtime.get("script_id", "")),
 		"script_name": str(runtime.get("script_name", "")),
+		"language": str(runtime.get("language", BackendFactory.DEFAULT_LANGUAGE_ID)),
 		"source": str(runtime.get("source", "")),
 		"status": str(runtime.get("status", STATUS_STOPPED)),
 		"output": str(runtime.get("output", "")),

@@ -27,19 +27,21 @@ func execute(code, context):
 		str(script.get("id", "")),
 		str(code),
 		str(script.get("title", "Sem nome")),
-		context
+		context,
+		str(script.get("language", ScriptWorkspace.DEFAULT_LANGUAGE))
 	)
 
 func execute_active(context) -> void:
 	execute(script_workspace.get_active_source(), context)
 
-func start_script(script_id: String, source: String, script_name: String, context = null) -> String:
+func start_script(script_id: String, source: String, script_name: String, context = null,
+		language_id: String = ScriptWorkspace.DEFAULT_LANGUAGE) -> String:
 	if context == null:
 		context = current_execution_context
 	if context == null:
 		context = EnvContext.new([], 0, [])
 	current_execution_context = context
-	return runtime_manager.start_script(script_id, source, script_name, context)
+	return runtime_manager.start_script(script_id, source, script_name, context, language_id)
 
 func start_active_script(context = null) -> String:
 	if context == null:
@@ -52,7 +54,8 @@ func start_active_script(context = null) -> String:
 		str(script.get("id", "")),
 		str(script.get("source", "")),
 		str(script.get("title", "Sem nome")),
-		context
+		context,
+		str(script.get("language", ScriptWorkspace.DEFAULT_LANGUAGE))
 	)
 
 
