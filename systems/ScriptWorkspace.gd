@@ -1,6 +1,7 @@
 extends RefCounted
 
-const WORKSPACE_VERSION := 3
+const WORKSPACE_VERSION := 4
+const DEFAULT_LANGUAGE := "c_like"
 const DEFAULT_SOURCE := "int main(){\n\n}\n"
 const DEFAULT_TITLE := "Principal"
 const DELIVERY_TITLE := "Delivery"
@@ -21,6 +22,9 @@ func _init() -> void:
 	_ensure_default_script()
 
 func create_script(title: String = "", source: String = DEFAULT_SOURCE) -> String:
+	return _create_script(title, source, DEFAULT_LANGUAGE)
+
+func _create_script(title: String, source: String, language: String) -> String:
 	var clean_title := title.strip_edges()
 	if clean_title.is_empty():
 		clean_title = _make_new_script_title()
@@ -30,6 +34,7 @@ func create_script(title: String = "", source: String = DEFAULT_SOURCE) -> Strin
 		"id": _generate_id(),
 		"title": clean_title,
 		"source": source,
+		"language": language,
 		"created_at": now,
 		"updated_at": now
 	}
@@ -88,7 +93,11 @@ func duplicate_script(id: String) -> String:
 	var script := get_script_document(id)
 	if script.is_empty():
 		return ""
-	return create_script(str(script.get("title", DEFAULT_TITLE)) + " copia", str(script.get("source", DEFAULT_SOURCE)))
+	return _create_script(
+		str(script.get("title", DEFAULT_TITLE)) + " copia",
+		str(script.get("source", DEFAULT_SOURCE)),
+		str(script.get("language", DEFAULT_LANGUAGE))
+	)
 
 func get_script_document(id: String) -> Dictionary:
 	var index := _find_script_index(id)
@@ -225,6 +234,7 @@ func _normalize_script(raw_script: Dictionary) -> Dictionary:
 		"id": id,
 		"title": title,
 		"source": str(raw_script.get("source", "")),
+		"language": str(raw_script.get("language", DEFAULT_LANGUAGE)),
 		"created_at": created_at,
 		"updated_at": updated_at
 	}
