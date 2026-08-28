@@ -107,6 +107,106 @@ class CompoundAssignmentNode extends StatementNode:
 		operator_span = assignment_operator_span
 
 
+# A block represents the complete suite grammar. Its span starts at the NEWLINE
+# after the header colon and ends at the exclusive end of DEDENT. INDENT may
+# cover indentation whitespace; DEDENT is normally zero-width at the next token.
+class BlockNode extends AstNode:
+	var statements: Array
+	var newline_span: SourceSpan
+	var indent_span: SourceSpan
+	var dedent_span: SourceSpan
+
+	func _init(block_statements: Array, source_span: SourceSpan,
+			block_newline_span: SourceSpan, block_indent_span: SourceSpan,
+			block_dedent_span: SourceSpan) -> void:
+		super("block", source_span)
+		statements = block_statements
+		newline_span = block_newline_span
+		indent_span = block_indent_span
+		dedent_span = block_dedent_span
+
+
+class ConditionalBranchNode extends AstNode:
+	var keyword: String
+	var condition: ExpressionNode
+	var body: BlockNode
+	var keyword_span: SourceSpan
+	var colon_span: SourceSpan
+
+	func _init(branch_keyword: String, branch_condition: ExpressionNode,
+			branch_body: BlockNode, source_span: SourceSpan,
+			branch_keyword_span: SourceSpan, branch_colon_span: SourceSpan) -> void:
+		super("conditional_branch", source_span)
+		keyword = branch_keyword
+		condition = branch_condition
+		body = branch_body
+		keyword_span = branch_keyword_span
+		colon_span = branch_colon_span
+
+
+class ElseBranchNode extends AstNode:
+	var body: BlockNode
+	var keyword_span: SourceSpan
+	var colon_span: SourceSpan
+
+	func _init(branch_body: BlockNode, source_span: SourceSpan,
+			branch_keyword_span: SourceSpan, branch_colon_span: SourceSpan) -> void:
+		super("else_branch", source_span)
+		body = branch_body
+		keyword_span = branch_keyword_span
+		colon_span = branch_colon_span
+
+
+class IfStatementNode extends StatementNode:
+	var if_branch: ConditionalBranchNode
+	var elif_branches: Array
+	var else_branch: ElseBranchNode
+
+	func _init(main_branch: ConditionalBranchNode, additional_branches: Array,
+			optional_else_branch, source_span: SourceSpan) -> void:
+		super("if_statement", source_span)
+		if_branch = main_branch
+		elif_branches = additional_branches
+		else_branch = optional_else_branch
+
+
+class WhileStatementNode extends StatementNode:
+	var condition: ExpressionNode
+	var body: BlockNode
+	var keyword_span: SourceSpan
+	var colon_span: SourceSpan
+
+	func _init(loop_condition: ExpressionNode, loop_body: BlockNode,
+			source_span: SourceSpan, loop_keyword_span: SourceSpan,
+			loop_colon_span: SourceSpan) -> void:
+		super("while_statement", source_span)
+		condition = loop_condition
+		body = loop_body
+		keyword_span = loop_keyword_span
+		colon_span = loop_colon_span
+
+
+class ForStatementNode extends StatementNode:
+	var target: IdentifierNode
+	var iterable: ExpressionNode
+	var body: BlockNode
+	var keyword_span: SourceSpan
+	var in_span: SourceSpan
+	var colon_span: SourceSpan
+
+	func _init(loop_target: IdentifierNode, loop_iterable: ExpressionNode,
+			loop_body: BlockNode, source_span: SourceSpan,
+			loop_keyword_span: SourceSpan, loop_in_span: SourceSpan,
+			loop_colon_span: SourceSpan) -> void:
+		super("for_statement", source_span)
+		target = loop_target
+		iterable = loop_iterable
+		body = loop_body
+		keyword_span = loop_keyword_span
+		in_span = loop_in_span
+		colon_span = loop_colon_span
+
+
 class IntegerLiteralNode extends ExpressionNode:
 	var value: int
 	var lexeme: String

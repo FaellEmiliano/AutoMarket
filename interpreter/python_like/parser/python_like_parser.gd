@@ -17,11 +17,6 @@ const ASSIGNMENT_TYPES := [
 ]
 
 const UNSUPPORTED_STAGE_TYPES := {
-	TokenData.Type.KW_IF: "if",
-	TokenData.Type.KW_ELIF: "elif",
-	TokenData.Type.KW_ELSE: "else",
-	TokenData.Type.KW_WHILE: "while",
-	TokenData.Type.KW_FOR: "for",
 	TokenData.Type.KW_DEF: "def",
 	TokenData.Type.KW_RETURN: "return",
 	TokenData.Type.KW_BREAK: "break",
@@ -75,7 +70,7 @@ func parse() -> Ast.ProgramNode:
 			continue
 
 		var iteration_start := _position
-		var statement = _parse_simple_statement()
+		var statement = _parse_statement()
 		if statement != null:
 			statements.append(statement)
 		if _position == iteration_start:
@@ -90,19 +85,269 @@ func parse() -> Ast.ProgramNode:
 	return Ast.ProgramNode.new(statements, program_span)
 
 
+func _parse_statement():
+	match _current().type:
+		TokenData.Type.KW_IF:
+			return _parse_if_statement()
+		TokenData.Type.KW_WHILE:
+			return _parse_while_statement()
+		TokenData.Type.KW_FOR:
+			return _parse_for_statement()
+		TokenData.Type.KW_ELIF:
+			_add_error(
+				"PARSE_UNEXPECTED_ELIF",
+				"'elif' precisa estar imediatamente associado a um 'if'.",
+				_current(), {"found": "elif"}
+			)
+			_skip_compound_statement()
+			return null
+		TokenData.Type.KW_ELSE:
+			_add_error(
+				"PARSE_UNEXPECTED_ELSE",
+				"'else' precisa estar imediatamente associado a um 'if'.",
+				_current(), {"found": "else"}
+			)
+			_skip_compound_statement()
+			return null
+		TokenData.Type.KW_DEF:
+			_add_unsupported_stage_error(_current())
+			_skip_compound_statement()
+			return null
+		TokenData.Type.INDENT:
+			_add_error(
+				"PARSE_UNEXPECTED_INDENT",
+				"Indentação inesperada fora de uma suite.",
+				_current(), {"found": "INDENT"}
+			)
+			_skip_indented_tokens()
+			return null
+		TokenData.Type.DEDENT:
+			_add_error(
+				"PARSE_UNEXPECTED_DEDENT",
+				"Dedent inesperado fora de uma suite.",
+				_current(), {"found": "DEDENT"}
+			)
+			_advance()
+			return null
+		_:
+			return _parse_simple_statement()
+
+
+func _parse_if_statement():
+	var if_branch = _parse_conditional_branch(TokenData.Type.KW_IF, "if")
+	if if_branch == null:
+		return null
+
+	var elif_branches: Array = []
+	while _check(TokenData.Type.KW_ELIF):
+		var branch = _parse_conditional_branch(TokenData.Type.KW_ELIF, "elif")
+		if branch == null:
+			break
+		elif_branches.append(branch)
+
+	var else_branch = null
+	if _check(TokenData.Type.KW_ELSE):
+		else_branch = _parse_else_branch()
+
+	var final_span: Ast.SourceSpan = if_branch.span
+	if else_branch != null:
+		final_span = else_branch.span
+	elif not elif_branches.is_empty():
+		final_span = elif_branches[-1].span
+	return Ast.IfStatementNode.new(
+		if_branch, elif_branches, else_branch,
+		_span_between(if_branch.span, final_span)
+	)
+
+
+func _parse_conditional_branch(keyword_type: int, keyword_text: String):
+	var keyword_token = _consume(
+		keyword_type, "PARSE_EXPECTED_KEYWORD",
+		"Era esperado '%s'." % keyword_text
+	)
+	if keyword_token == null:
+		return null
+	var condition = _parse_or_expression()
+	if condition == null:
+		_synchronize_compound_header()
+		return null
+	var colon_token = _consume(
+		TokenData.Type.COLON, "PARSE_EXPECTED_COLON",
+		"Era esperado ':' após a condição de '%s'." % keyword_text
+	)
+	if colon_token == null:
+		_synchronize_compound_header()
+		return null
+	var body = _parse_suite()
+	if body == null:
+		return null
+	return Ast.ConditionalBranchNode.new(
+		keyword_text, condition, body,
+		_span_from_token_to_span(keyword_token, body.span),
+		Ast.SourceSpan.from_token(keyword_token), Ast.SourceSpan.from_token(colon_token)
+	)
+
+
+func _parse_else_branch():
+	var keyword_token = _advance()
+	var colon_token = _consume(
+		TokenData.Type.COLON, "PARSE_EXPECTED_COLON",
+		"Era esperado ':' após 'else'."
+	)
+	if colon_token == null:
+		_synchronize_compound_header()
+		return null
+	var body = _parse_suite()
+	if body == null:
+		return null
+	return Ast.ElseBranchNode.new(
+		body, _span_from_token_to_span(keyword_token, body.span),
+		Ast.SourceSpan.from_token(keyword_token), Ast.SourceSpan.from_token(colon_token)
+	)
+
+
+func _parse_while_statement():
+	var keyword_token = _advance()
+	var condition = _parse_or_expression()
+	if condition == null:
+		_synchronize_compound_header()
+		return null
+	var colon_token = _consume(
+		TokenData.Type.COLON, "PARSE_EXPECTED_COLON",
+		"Era esperado ':' após a condição de 'while'."
+	)
+	if colon_token == null:
+		_synchronize_compound_header()
+		return null
+	var body = _parse_suite()
+	if body == null:
+		return null
+	var statement = Ast.WhileStatementNode.new(
+		condition, body, _span_from_token_to_span(keyword_token, body.span),
+		Ast.SourceSpan.from_token(keyword_token), Ast.SourceSpan.from_token(colon_token)
+	)
+	if _check(TokenData.Type.KW_ELSE):
+		_report_and_skip_loop_else("while_else")
+	return statement
+
+
+func _parse_for_statement():
+	var keyword_token = _advance()
+	if not _check(TokenData.Type.NAME):
+		var feature := "for_unpacking" if _current().type in [
+			TokenData.Type.LPAREN, TokenData.Type.LBRACKET
+		] else "for_target"
+		_add_error(
+			"PARSE_UNSUPPORTED_FEATURE" if feature == "for_unpacking" else "PARSE_INVALID_FOR_TARGET",
+			"O alvo de 'for' deve ser um único nome, sem desempacotamento.",
+			_current(), {"feature": feature, "found": _current().get_type_name()}
+		)
+		_synchronize_compound_header()
+		return null
+
+	var target_token = _advance()
+	if RESERVED_NAME_LEXEMES.has(target_token.lexeme):
+		_add_unsupported_name_error(target_token)
+		_synchronize_compound_header()
+		return null
+	var target = Ast.IdentifierNode.new(target_token.value, Ast.SourceSpan.from_token(target_token))
+	if _check(TokenData.Type.COMMA):
+		_add_error(
+			"PARSE_UNSUPPORTED_FEATURE",
+			"Desempacotamento no alvo de 'for' não faz parte desta etapa.",
+			_current(), {"feature": "for_unpacking"}
+		)
+		_synchronize_compound_header()
+		return null
+
+	var in_token = _consume(
+		TokenData.Type.KW_IN, "PARSE_EXPECTED_IN",
+		"Era esperado 'in' após o alvo de 'for'."
+	)
+	if in_token == null:
+		_synchronize_compound_header()
+		return null
+	var iterable = _parse_or_expression()
+	if iterable == null:
+		_synchronize_compound_header()
+		return null
+	var colon_token = _consume(
+		TokenData.Type.COLON, "PARSE_EXPECTED_COLON",
+		"Era esperado ':' após a expressão iterável de 'for'."
+	)
+	if colon_token == null:
+		_synchronize_compound_header()
+		return null
+	var body = _parse_suite()
+	if body == null:
+		return null
+	var statement = Ast.ForStatementNode.new(
+		target, iterable, body, _span_from_token_to_span(keyword_token, body.span),
+		Ast.SourceSpan.from_token(keyword_token), Ast.SourceSpan.from_token(in_token),
+		Ast.SourceSpan.from_token(colon_token)
+	)
+	if _check(TokenData.Type.KW_ELSE):
+		_report_and_skip_loop_else("for_else")
+	return statement
+
+
+func _parse_suite():
+	if not _check(TokenData.Type.NEWLINE):
+		_add_error(
+			"PARSE_INLINE_SUITE_NOT_SUPPORTED",
+			"Suites na mesma linha não fazem parte do MVP Python-like.",
+			_current(), {"expected": "NEWLINE", "found": _current().get_type_name()}
+		)
+		_synchronize_statement()
+		return null
+	var newline_token = _advance()
+
+	if not _check(TokenData.Type.INDENT):
+		_add_error(
+			"PARSE_EXPECTED_INDENT",
+			"Era esperado um bloco indentado não vazio.",
+			_current(), {"expected": "INDENT", "found": _current().get_type_name()}
+		)
+		return null
+	var indent_token = _advance()
+	var statements: Array = []
+	var statement_attempts := 0
+
+	while not _check(TokenData.Type.DEDENT) and not _check(TokenData.Type.EOF):
+		if _match(TokenData.Type.NEWLINE):
+			continue
+		var iteration_start := _position
+		statement_attempts += 1
+		var statement = _parse_statement()
+		if statement != null:
+			statements.append(statement)
+		if _position == iteration_start:
+			_advance()
+
+	if statement_attempts == 0:
+		_add_error(
+			"PARSE_EMPTY_SUITE",
+			"Uma suite precisa conter ao menos um statement.",
+			_current(), {"expected": "statement"}
+		)
+	if not _check(TokenData.Type.DEDENT):
+		_add_error(
+			"PARSE_EXPECTED_DEDENT",
+			"O bloco indentado não foi encerrado corretamente.",
+			_current(), {"expected": "DEDENT", "found": _current().get_type_name()}
+		)
+		return null
+	var dedent_token = _advance()
+	return Ast.BlockNode.new(
+		statements, Ast.SourceSpan.between(newline_token, dedent_token),
+		Ast.SourceSpan.from_token(newline_token), Ast.SourceSpan.from_token(indent_token),
+		Ast.SourceSpan.from_token(dedent_token)
+	)
+
+
 func _parse_simple_statement():
 	if UNSUPPORTED_STAGE_TYPES.has(_current().type):
 		_add_unsupported_stage_error(_current())
-		_synchronize_statement()
-		return null
-
-	if _check(TokenData.Type.INDENT) or _check(TokenData.Type.DEDENT):
-		_add_error(
-			"PARSE_UNSUPPORTED_STAGE",
-			"Blocos indentados ainda não são aceitos nesta etapa do parser.",
-			_current(),
-			{"construction": _current().get_type_name(), "stage": "simple_statements"}
-		)
 		_synchronize_statement()
 		return null
 
@@ -144,6 +389,24 @@ func _parse_simple_statement():
 			)
 		elif UNSUPPORTED_STAGE_TYPES.has(_current().type):
 			_add_unsupported_stage_error(_current())
+		elif _check(TokenData.Type.KW_IF):
+			_add_error(
+				"PARSE_UNSUPPORTED_FEATURE",
+				"Expressões condicionais não fazem parte do MVP Python-like.",
+				_current(), {"feature": "conditional_expression"}
+			)
+		elif _check(TokenData.Type.KW_FOR):
+			_add_error(
+				"PARSE_UNSUPPORTED_FEATURE",
+				"Generator expressions não fazem parte do MVP Python-like.",
+				_current(), {"feature": "generator_expression"}
+			)
+		elif _check(TokenData.Type.KW_ELIF) or _check(TokenData.Type.KW_ELSE):
+			_add_error(
+				"PARSE_UNEXPECTED_CLAUSE",
+				"A cláusula precisa estar associada ao cabeçalho composto anterior.",
+				_current(), {"found": _current().lexeme}
+			)
 		elif _check(TokenData.Type.NAME) and RESERVED_NAME_LEXEMES.has(_current().lexeme):
 			_add_unsupported_name_error(_current())
 		else:
@@ -356,6 +619,13 @@ func _finish_group(opening_token):
 			_current(), {"feature": "tuple"}
 		)
 		return null
+	if _check(TokenData.Type.KW_FOR):
+		_add_error(
+			"PARSE_UNSUPPORTED_FEATURE",
+			"Generator expressions não fazem parte do MVP Python-like.",
+			_current(), {"feature": "generator_expression"}
+		)
+		return null
 	var closing_token = _consume(
 		TokenData.Type.RPAREN, "PARSE_EXPECTED_RPAREN",
 		"Falta ')' para fechar a expressão agrupada."
@@ -453,6 +723,13 @@ func _finish_call(callee, opening_token):
 					"PARSE_UNSUPPORTED_FEATURE",
 					"Argumentos nomeados não fazem parte do MVP Python-like.",
 					_current(), {"feature": "named_arguments"}
+				)
+				return null
+			if _check(TokenData.Type.KW_FOR):
+				_add_error(
+					"PARSE_UNSUPPORTED_FEATURE",
+					"Generator expressions não fazem parte do MVP Python-like.",
+					_current(), {"feature": "generator_expression"}
 				)
 				return null
 			arguments.append(argument)
@@ -553,13 +830,62 @@ func _is_expression_boundary(token_type: int) -> bool:
 		TokenData.Type.RBRACE,
 		TokenData.Type.COMMA,
 		TokenData.Type.COLON,
+		TokenData.Type.INDENT,
+		TokenData.Type.DEDENT,
 	]
 
 
 func _synchronize_statement() -> void:
-	while not _check(TokenData.Type.EOF) and not _check(TokenData.Type.NEWLINE):
+	while not _check(TokenData.Type.EOF) \
+			and not _check(TokenData.Type.NEWLINE) \
+			and not _check(TokenData.Type.DEDENT):
 		_advance()
 	_match(TokenData.Type.NEWLINE)
+
+
+func _synchronize_compound_header() -> void:
+	while not _check(TokenData.Type.EOF) \
+			and not _check(TokenData.Type.NEWLINE) \
+			and not _check(TokenData.Type.DEDENT):
+		_advance()
+	if _match(TokenData.Type.NEWLINE) and _check(TokenData.Type.INDENT):
+		_skip_indented_tokens()
+
+
+func _skip_compound_statement() -> void:
+	while not _check(TokenData.Type.EOF) \
+			and not _check(TokenData.Type.NEWLINE) \
+			and not _check(TokenData.Type.DEDENT):
+		_advance()
+	if _match(TokenData.Type.NEWLINE) and _check(TokenData.Type.INDENT):
+		_skip_indented_tokens()
+
+
+func _skip_indented_tokens() -> void:
+	if not _check(TokenData.Type.INDENT):
+		return
+	var depth := 0
+	while not _check(TokenData.Type.EOF):
+		if _check(TokenData.Type.INDENT):
+			depth += 1
+			_advance()
+			continue
+		if _check(TokenData.Type.DEDENT):
+			depth -= 1
+			_advance()
+			if depth == 0:
+				return
+			continue
+		_advance()
+
+
+func _report_and_skip_loop_else(feature: String) -> void:
+	_add_error(
+		"PARSE_UNSUPPORTED_FEATURE",
+		"Cláusulas 'else' em loops não fazem parte desta etapa.",
+		_current(), {"feature": feature}
+	)
+	_skip_compound_statement()
 
 
 func _consume(token_type: int, error_code: String, error_message: String):
@@ -588,7 +914,7 @@ func _add_unsupported_stage_error(token) -> void:
 	_add_error(
 		"PARSE_UNSUPPORTED_STAGE",
 		"A construção '%s' ainda não é aceita nesta etapa do parser." % construction,
-		token, {"construction": construction, "stage": "simple_statements"}
+		token, {"construction": construction, "stage": "conditionals_and_loops"}
 	)
 
 
