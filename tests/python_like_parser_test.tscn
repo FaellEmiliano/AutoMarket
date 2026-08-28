@@ -1,0 +1,6 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource path="res://tests/python_like_parser_test.gd" type="Script" id="1_parser"]
+
+[node name="PythonLikeParserTest" type="Node"]
+script = ExtResource("1_parser")
