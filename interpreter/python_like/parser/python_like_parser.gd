@@ -16,13 +16,6 @@ const ASSIGNMENT_TYPES := [
 	TokenData.Type.PERCENT_ASSIGN,
 ]
 
-const UNSUPPORTED_STAGE_TYPES := {
-	TokenData.Type.KW_DEF: "def",
-	TokenData.Type.KW_RETURN: "return",
-	TokenData.Type.KW_BREAK: "break",
-	TokenData.Type.KW_CONTINUE: "continue",
-}
-
 const RESERVED_NAME_LEXEMES := {
 	"as": true,
 	"assert": true,
@@ -51,6 +44,7 @@ const RESERVED_NAME_LEXEMES := {
 var tokens: Array
 var errors: Array = []
 var _position: int = 0
+var _context_stack: Array[Dictionary] = []
 
 
 func _init(source_tokens: Array = []) -> void:
@@ -60,6 +54,7 @@ func _init(source_tokens: Array = []) -> void:
 func parse() -> Ast.ProgramNode:
 	errors.clear()
 	_position = 0
+	_context_stack = [{"kind": "module", "loop_depth": 0}]
 	var statements: Array = []
 
 	if tokens.is_empty():
@@ -86,6 +81,15 @@ func parse() -> Ast.ProgramNode:
 
 
 func _parse_statement():
+	if _check(TokenData.Type.NAME) and _current().lexeme == "async" \
+			and _peek_type(1) == TokenData.Type.KW_DEF:
+		_add_error(
+			"PARSE_UNSUPPORTED_FEATURE",
+			"Funções assíncronas não fazem parte do MVP Python-like.",
+			_current(), {"feature": "async_function"}
+		)
+		_skip_compound_statement()
+		return null
 	match _current().type:
 		TokenData.Type.KW_IF:
 			return _parse_if_statement()
@@ -93,6 +97,14 @@ func _parse_statement():
 			return _parse_while_statement()
 		TokenData.Type.KW_FOR:
 			return _parse_for_statement()
+		TokenData.Type.KW_DEF:
+			return _parse_function_definition()
+		TokenData.Type.KW_RETURN:
+			return _parse_return_statement()
+		TokenData.Type.KW_BREAK:
+			return _parse_break_statement()
+		TokenData.Type.KW_CONTINUE:
+			return _parse_continue_statement()
 		TokenData.Type.KW_ELIF:
 			_add_error(
 				"PARSE_UNEXPECTED_ELIF",
@@ -107,10 +119,6 @@ func _parse_statement():
 				"'else' precisa estar imediatamente associado a um 'if'.",
 				_current(), {"found": "else"}
 			)
-			_skip_compound_statement()
-			return null
-		TokenData.Type.KW_DEF:
-			_add_unsupported_stage_error(_current())
 			_skip_compound_statement()
 			return null
 		TokenData.Type.INDENT:
@@ -219,7 +227,9 @@ func _parse_while_statement():
 	if colon_token == null:
 		_synchronize_compound_header()
 		return null
+	_enter_loop_context()
 	var body = _parse_suite()
+	_leave_loop_context()
 	if body == null:
 		return null
 	var statement = Ast.WhileStatementNode.new(
@@ -278,7 +288,9 @@ func _parse_for_statement():
 	if colon_token == null:
 		_synchronize_compound_header()
 		return null
+	_enter_loop_context()
 	var body = _parse_suite()
+	_leave_loop_context()
 	if body == null:
 		return null
 	var statement = Ast.ForStatementNode.new(
@@ -291,7 +303,212 @@ func _parse_for_statement():
 	return statement
 
 
-func _parse_suite():
+func _parse_function_definition():
+	var keyword_token = _advance()
+	if not _check(TokenData.Type.NAME):
+		_add_error(
+			"PARSE_EXPECTED_FUNCTION_NAME",
+			"Era esperado o nome da função após 'def'.",
+			_current(), {"expected": "NAME", "found": _current().get_type_name()}
+		)
+		_synchronize_compound_header()
+		return null
+	var name_token = _advance()
+	if RESERVED_NAME_LEXEMES.has(name_token.lexeme):
+		_add_unsupported_name_error(name_token)
+		_synchronize_compound_header()
+		return null
+
+	var opening_token = _consume(
+		TokenData.Type.LPAREN, "PARSE_EXPECTED_LPAREN",
+		"Era esperado '(' após o nome da função."
+	)
+	if opening_token == null:
+		_synchronize_compound_header()
+		return null
+
+	var parameters: Array = []
+	var comma_spans: Array = []
+	var parameter_names := {}
+	if not _check(TokenData.Type.RPAREN):
+		while true:
+			if _check(TokenData.Type.STAR) or _check(TokenData.Type.DOUBLE_STAR):
+				_add_error(
+					"PARSE_UNSUPPORTED_PARAMETER_FEATURE",
+					"Parâmetros variádicos não fazem parte do MVP Python-like.",
+					_current(), {"feature": "variadic_parameter"}
+				)
+				_synchronize_compound_header()
+				return null
+			if not _check(TokenData.Type.NAME):
+				_add_error(
+					"PARSE_EXPECTED_PARAMETER",
+					"Era esperado um nome de parâmetro.",
+					_current(), {"expected": "NAME", "found": _current().get_type_name()}
+				)
+				_synchronize_compound_header()
+				return null
+			var parameter_token = _advance()
+			if RESERVED_NAME_LEXEMES.has(parameter_token.lexeme):
+				_add_error(
+					"PARSE_UNSUPPORTED_PARAMETER_FEATURE",
+					"A palavra reservada '%s' não pode ser usada como parâmetro." % parameter_token.lexeme,
+					parameter_token, {"feature": "reserved_parameter_name"}
+				)
+				_synchronize_compound_header()
+				return null
+			var parameter_span := Ast.SourceSpan.from_token(parameter_token)
+			parameters.append(Ast.ParameterNode.new(parameter_token.value, parameter_span))
+			if parameter_names.has(parameter_token.lexeme):
+				_add_error(
+					"PARSE_DUPLICATE_PARAMETER",
+					"O parâmetro '%s' foi declarado mais de uma vez." % parameter_token.lexeme,
+					parameter_token, {"parameter": parameter_token.lexeme}
+				)
+			else:
+				parameter_names[parameter_token.lexeme] = true
+
+			if _check(TokenData.Type.ASSIGN):
+				_add_error(
+					"PARSE_UNSUPPORTED_PARAMETER_FEATURE",
+					"Valores padrão de parâmetros não fazem parte do MVP Python-like.",
+					_current(), {"feature": "default_parameter"}
+				)
+				_synchronize_compound_header()
+				return null
+			if _check(TokenData.Type.COLON):
+				_add_error(
+					"PARSE_UNSUPPORTED_PARAMETER_FEATURE",
+					"Anotações de tipo não fazem parte do MVP Python-like.",
+					_current(), {"feature": "parameter_annotation"}
+				)
+				_synchronize_compound_header()
+				return null
+			if _check(TokenData.Type.RPAREN):
+				break
+			if _check(TokenData.Type.NEWLINE) or _check(TokenData.Type.EOF) \
+					or _current().line > parameter_token.end_line:
+				break
+			if not _check(TokenData.Type.COMMA):
+				_add_error(
+					"PARSE_EXPECTED_PARAMETER_SEPARATOR",
+					"Era esperado ',' entre os parâmetros.",
+					_current(), {"expected": "COMMA", "found": _current().get_type_name()}
+				)
+				_synchronize_compound_header()
+				return null
+			var comma_token = _advance()
+			comma_spans.append(Ast.SourceSpan.from_token(comma_token))
+			if _check(TokenData.Type.RPAREN):
+				break
+
+	var closing_token = _consume(
+		TokenData.Type.RPAREN, "PARSE_EXPECTED_RPAREN",
+		"Falta ')' para fechar a lista de parâmetros."
+	)
+	if closing_token == null:
+		_synchronize_compound_header()
+		return null
+	var colon_token = _consume(
+		TokenData.Type.COLON, "PARSE_EXPECTED_COLON",
+		"Era esperado ':' após a assinatura da função."
+	)
+	if colon_token == null:
+		_synchronize_compound_header()
+		return null
+
+	_enter_function_context()
+	var body = _parse_suite(
+		"PARSE_EXPECTED_FUNCTION_BODY",
+		"Era esperado um bloco indentado não vazio para a função."
+	)
+	_leave_function_context()
+	if body == null:
+		return null
+	return Ast.FunctionDefinitionNode.new(
+		name_token.value, Ast.SourceSpan.from_token(name_token), parameters, body,
+		_span_from_token_to_span(keyword_token, body.span), Ast.SourceSpan.from_token(keyword_token),
+		Ast.SourceSpan.from_token(opening_token), Ast.SourceSpan.from_token(closing_token),
+		comma_spans, Ast.SourceSpan.from_token(colon_token)
+	)
+
+
+func _parse_return_statement():
+	var keyword_token = _advance()
+	var keyword_span := Ast.SourceSpan.from_token(keyword_token)
+	if not _is_inside_function():
+		_add_error(
+			"PARSE_RETURN_OUTSIDE_FUNCTION",
+			"'return' só pode ser usado dentro de uma função.",
+			keyword_token, {"context": "module"}
+		)
+	var value = null
+	if not _check(TokenData.Type.NEWLINE) and not _check(TokenData.Type.EOF):
+		value = _parse_or_expression()
+		if value == null:
+			_synchronize_statement()
+			return Ast.ReturnStatementNode.new(null, keyword_span, keyword_span)
+	if not _finish_control_line("return"):
+		_add_error(
+			"PARSE_EXPECTED_NEWLINE",
+			"Cada linha aceita exatamente um statement.",
+			_current(), {"found": _current().get_type_name()}
+		)
+		_synchronize_statement()
+		return Ast.ReturnStatementNode.new(
+			value, keyword_span if value == null else _span_between(keyword_span, value.span),
+			keyword_span
+		)
+	var statement_span: Ast.SourceSpan = keyword_span if value == null \
+		else _span_between(keyword_span, value.span)
+	return Ast.ReturnStatementNode.new(value, statement_span, keyword_span)
+
+
+func _parse_break_statement():
+	var keyword_token = _advance()
+	var keyword_span := Ast.SourceSpan.from_token(keyword_token)
+	if not _is_inside_loop():
+		_add_error(
+			"PARSE_BREAK_OUTSIDE_LOOP",
+			"'break' só pode ser usado dentro de um loop da função atual.",
+			keyword_token
+		)
+	if not _finish_control_line("break"):
+		_add_error(
+			"PARSE_UNEXPECTED_VALUE_AFTER_BREAK",
+			"'break' não aceita valor.", _current()
+		)
+		_synchronize_statement()
+	return Ast.BreakStatementNode.new(keyword_span)
+
+
+func _parse_continue_statement():
+	var keyword_token = _advance()
+	var keyword_span := Ast.SourceSpan.from_token(keyword_token)
+	if not _is_inside_loop():
+		_add_error(
+			"PARSE_CONTINUE_OUTSIDE_LOOP",
+			"'continue' só pode ser usado dentro de um loop da função atual.",
+			keyword_token
+		)
+	if not _finish_control_line("continue"):
+		_add_error(
+			"PARSE_UNEXPECTED_VALUE_AFTER_CONTINUE",
+			"'continue' não aceita valor.", _current()
+		)
+		_synchronize_statement()
+	return Ast.ContinueStatementNode.new(keyword_span)
+
+
+func _finish_control_line(_construction: String) -> bool:
+	if not _check(TokenData.Type.NEWLINE) and not _check(TokenData.Type.EOF):
+		return false
+	_match(TokenData.Type.NEWLINE)
+	return true
+
+
+func _parse_suite(indent_error_code: String = "PARSE_EXPECTED_INDENT",
+		indent_error_message: String = "Era esperado um bloco indentado não vazio."):
 	if not _check(TokenData.Type.NEWLINE):
 		_add_error(
 			"PARSE_INLINE_SUITE_NOT_SUPPORTED",
@@ -304,8 +521,8 @@ func _parse_suite():
 
 	if not _check(TokenData.Type.INDENT):
 		_add_error(
-			"PARSE_EXPECTED_INDENT",
-			"Era esperado um bloco indentado não vazio.",
+			indent_error_code,
+			indent_error_message,
 			_current(), {"expected": "INDENT", "found": _current().get_type_name()}
 		)
 		return null
@@ -346,11 +563,6 @@ func _parse_suite():
 
 
 func _parse_simple_statement():
-	if UNSUPPORTED_STAGE_TYPES.has(_current().type):
-		_add_unsupported_stage_error(_current())
-		_synchronize_statement()
-		return null
-
 	var left = _parse_or_expression()
 	if left == null:
 		_synchronize_statement()
@@ -387,8 +599,6 @@ func _parse_simple_statement():
 				"Atribuição encadeada não faz parte do MVP Python-like.",
 				_current(), {"feature": "chained_assignment"}
 			)
-		elif UNSUPPORTED_STAGE_TYPES.has(_current().type):
-			_add_unsupported_stage_error(_current())
 		elif _check(TokenData.Type.KW_IF):
 			_add_error(
 				"PARSE_UNSUPPORTED_FEATURE",
@@ -590,15 +800,12 @@ func _parse_atom():
 	if _match(TokenData.Type.LBRACE):
 		return _finish_dictionary(_previous())
 
-	if UNSUPPORTED_STAGE_TYPES.has(_current().type):
-		_add_unsupported_stage_error(_current())
-	else:
-		_add_error(
-			"PARSE_EXPECTED_EXPRESSION",
-			"Era esperada uma expressão.",
-			_current(),
-			{"found": _current().get_type_name()}
-		)
+	_add_error(
+		"PARSE_EXPECTED_EXPRESSION",
+		"Era esperada uma expressão.",
+		_current(),
+		{"found": _current().get_type_name()}
+	)
 	if not _is_expression_boundary(_current().type):
 		_advance()
 	return null
@@ -780,9 +987,6 @@ func _finish_index(collection, opening_token):
 
 
 func _finish_attribute(object, dot_token):
-	if UNSUPPORTED_STAGE_TYPES.has(_current().type):
-		_add_unsupported_stage_error(_current())
-		return null
 	if not _check(TokenData.Type.NAME):
 		_add_error(
 			"PARSE_EXPECTED_ATTRIBUTE",
@@ -888,12 +1092,36 @@ func _report_and_skip_loop_else(feature: String) -> void:
 	_skip_compound_statement()
 
 
+func _enter_function_context() -> void:
+	_context_stack.append({"kind": "function", "loop_depth": 0})
+
+
+func _leave_function_context() -> void:
+	if _context_stack.size() > 1:
+		_context_stack.pop_back()
+
+
+func _enter_loop_context() -> void:
+	var context: Dictionary = _context_stack[-1]
+	context["loop_depth"] = int(context.get("loop_depth", 0)) + 1
+
+
+func _leave_loop_context() -> void:
+	var context: Dictionary = _context_stack[-1]
+	context["loop_depth"] = maxi(0, int(context.get("loop_depth", 0)) - 1)
+
+
+func _is_inside_function() -> bool:
+	return not _context_stack.is_empty() and _context_stack[-1].get("kind", "module") == "function"
+
+
+func _is_inside_loop() -> bool:
+	return not _context_stack.is_empty() and int(_context_stack[-1].get("loop_depth", 0)) > 0
+
+
 func _consume(token_type: int, error_code: String, error_message: String):
 	if _check(token_type):
 		return _advance()
-	if UNSUPPORTED_STAGE_TYPES.has(_current().type):
-		_add_unsupported_stage_error(_current())
-		return null
 	_add_error(error_code, error_message, _current(), {"found": _current().get_type_name()})
 	return null
 
@@ -906,15 +1134,6 @@ func _add_unsupported_name_error(token) -> void:
 		"PARSE_UNSUPPORTED_FEATURE",
 		"'%s' é uma palavra reservada de um recurso não suportado. %s" % [token.lexeme, suggestion],
 		token, {"feature": token.lexeme, "suggestion": suggestion}
-	)
-
-
-func _add_unsupported_stage_error(token) -> void:
-	var construction: String = UNSUPPORTED_STAGE_TYPES[token.type]
-	_add_error(
-		"PARSE_UNSUPPORTED_STAGE",
-		"A construção '%s' ainda não é aceita nesta etapa do parser." % construction,
-		token, {"construction": construction, "stage": "conditionals_and_loops"}
 	)
 
 

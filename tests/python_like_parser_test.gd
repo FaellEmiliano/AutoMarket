@@ -24,9 +24,21 @@ func _ready() -> void:
 	_test_block_and_compound_spans()
 	_test_block_aware_error_recovery()
 	_test_invalid_for_targets_and_loop_else()
-	_test_deferred_constructs_and_stray_clauses()
+	_test_stray_clauses_and_pass()
 	_test_structured_errors_and_recovery()
-	_test_unsupported_stage_constructs()
+	_test_function_signatures_and_bodies()
+	_test_functions_with_control_flow()
+	_test_return_statements_and_context()
+	_test_loop_control_context()
+	_test_function_context_boundaries()
+	_test_nested_recursive_and_multiple_functions()
+	_test_function_header_errors()
+	_test_unsupported_function_features()
+	_test_function_recovery()
+	_test_control_statement_errors_and_preservation()
+	_test_function_and_control_spans()
+	_test_lexical_error_separation()
+	_test_recursive_acceptance_example()
 	_test_unsupported_python_features()
 	_test_all_nodes_have_valid_spans()
 
@@ -393,30 +405,14 @@ func _test_invalid_for_targets_and_loop_else() -> void:
 		"Loops válidos devem ser preservados e bodies de else adiados descartados.")
 
 
-func _test_deferred_constructs_and_stray_clauses() -> void:
-	var deferred := _parse(
-		"if True:\n"
-		+ "    def futura():\n"
-		+ "        interna = 1\n"
-		+ "    return 1\n"
-		+ "    break\n"
-		+ "    continue\n"
-		+ "    pass\n"
-		+ "    valida = 2\n"
-		+ "depois = 3\n"
-	)
-	for construction in ["def", "return", "break", "continue"]:
-		var matching = deferred.parser.errors.filter(
-			func(error): return error.details.get("construction") == construction
-		)
-		_check(not matching.is_empty(),
-			"Construção adiada %s deve manter diagnóstico estruturado dentro de bloco." % construction)
-	_check(_has_error_with_feature(deferred.parser, "pass"),
+func _test_stray_clauses_and_pass() -> void:
+	var reserved := _parse("if True:\n    pass\n    valida = 2\ndepois = 3\n")
+	_check(_has_error_with_feature(reserved.parser, "pass"),
 		"pass deve continuar reservado e não pode virar identificador.")
-	_check(deferred.program.statements.size() == 2,
-		"Construções adiadas não podem romper os limites da suite.")
-	_check(deferred.program.statements[0].if_branch.body.statements.size() == 1,
-		"Body de def adiado e statements inválidos não podem vazar para o if.")
+	_check(reserved.program.statements.size() == 2,
+		"Statement reservado não pode romper os limites da suite.")
+	_check(reserved.program.statements[0].if_branch.body.statements.size() == 1,
+		"Statement reservado não pode descartar statements válidos posteriores no bloco.")
 
 	var stray := _parse(
 		"elif condicao:\n"
@@ -451,22 +447,324 @@ func _test_structured_errors_and_recovery() -> void:
 		"Recuperação não pode fabricar nós neutros.")
 
 
-func _test_unsupported_stage_constructs() -> void:
-	var samples := {
-		"def f():\n": "def",
-		"return 1\n": "return",
-		"break\n": "break",
-		"continue\n": "continue",
-	}
-	for source in samples:
-		var result := _parse(source)
-		var matching = result.parser.errors.filter(
-			func(error): return error.code == "PARSE_UNSUPPORTED_STAGE"
-		)
-		_check(not matching.is_empty(),
-			"Construção %s deve falhar de forma estruturada nesta etapa." % samples[source])
+func _test_function_signatures_and_bodies() -> void:
+	var no_parameters := _parse("def iniciar():\n    print('ok')\n")
+	_check_no_errors(no_parameters, "Função sem parâmetros")
+	var no_parameters_node = no_parameters.program.statements[0]
+	_check(no_parameters_node is Ast.FunctionDefinitionNode
+		and no_parameters_node.parameters.is_empty(),
+		"Função sem parâmetros deve preservar uma lista vazia.")
+
+	var one_parameter := _parse("def dobro(valor):\n    return valor * 2\n")
+	_check_no_errors(one_parameter, "Função com um parâmetro")
+	_check(one_parameter.program.statements[0].parameters.size() == 1
+		and one_parameter.program.statements[0].parameters[0].name == "valor",
+		"Parâmetro único deve ser um ParameterNode ordenado.")
+
+	var many_parameters := _parse(
+		"def calcular(a, b, c,):\n"
+		+ "    total = a + b\n"
+		+ "    return total + c\n"
+	)
+	_check_no_errors(many_parameters, "Função com parâmetros e vírgula final")
+	var function = many_parameters.program.statements[0]
+	_check(function.parameters.map(func(parameter): return parameter.name) == ["a", "b", "c"],
+		"Vários parâmetros devem manter ordem e nomes.")
+	_check(function.comma_spans.size() == 3,
+		"Vírgulas, inclusive a final, devem ter spans preservados.")
+	_check(function.body is Ast.BlockNode and function.body.statements.size() == 2,
+		"Body de função deve preservar múltiplos statements em BlockNode.")
+
+
+func _test_functions_with_control_flow() -> void:
+	var result := _parse(
+		"def classificar(valor, itens):\n"
+		+ "    if valor > 0:\n"
+		+ "        return valor\n"
+		+ "    while valor < 0:\n"
+		+ "        valor += 1\n"
+		+ "    for item in itens:\n"
+		+ "        print(item)\n"
+		+ "    return\n"
+	)
+	_check_no_errors(result, "Função com if, while e for")
+	var body = result.program.statements[0].body.statements
+	_check(body[0] is Ast.IfStatementNode, "Função deve aceitar if no body.")
+	_check(body[1] is Ast.WhileStatementNode, "Função deve aceitar while no body.")
+	_check(body[2] is Ast.ForStatementNode, "Função deve aceitar for no body.")
+	_check(body[3] is Ast.ReturnStatementNode and body[3].value == null,
+		"Return vazio deve permanecer distinto de um literal None.")
+
+
+func _test_return_statements_and_context() -> void:
+	var branches := _parse(
+		"def escolher(valor):\n"
+		+ "    if valor:\n"
+		+ "        return valor\n"
+		+ "    else:\n"
+		+ "        return\n"
+	)
+	_check_no_errors(branches, "Returns em branches")
+	var if_node = branches.program.statements[0].body.statements[0]
+	_check(if_node.if_branch.body.statements[0] is Ast.ReturnStatementNode
+		and if_node.if_branch.body.statements[0].value is Ast.IdentifierNode,
+		"Return com expressão deve preservar o valor.")
+	_check(if_node.else_branch.body.statements[0].value == null,
+		"Return vazio em branch deve ser válido.")
+
+	var loop_return := _parse("def procurar():\n    while True:\n        return 1\n")
+	_check_no_errors(loop_return, "Return em loop de função")
+	_check(loop_return.program.statements[0].body.statements[0].body.statements[0]
+		is Ast.ReturnStatementNode,
+		"Return deve pertencer à função mais próxima através de loops.")
+
+	var outside := _parse("return 10\n")
+	_check(_error_codes(outside.parser).has("PARSE_RETURN_OUTSIDE_FUNCTION"),
+		"Return no nível superior deve produzir erro contextual.")
+	_check(outside.program.statements[0] is Ast.ReturnStatementNode
+		and outside.program.statements[0].value.value == 10,
+		"Return contextualmente inválido deve permanecer na AST.")
+
+
+func _test_loop_control_context() -> void:
+	var result := _parse(
+		"while ativo:\n"
+		+ "    if erro:\n"
+		+ "        break\n"
+		+ "    continue\n"
+		+ "for item in itens:\n"
+		+ "    if ignorar(item):\n"
+		+ "        continue\n"
+		+ "    break\n"
+	)
+	_check_no_errors(result, "Break e continue em loops")
+	var while_body = result.program.statements[0].body.statements
+	_check(while_body[0].if_branch.body.statements[0] is Ast.BreakStatementNode,
+		"Break deve atravessar if dentro de while.")
+	_check(while_body[1] is Ast.ContinueStatementNode,
+		"Continue deve ser válido diretamente em while.")
+	var for_body = result.program.statements[1].body.statements
+	_check(for_body[0].if_branch.body.statements[0] is Ast.ContinueStatementNode,
+		"Continue deve atravessar if dentro de for.")
+	_check(for_body[1] is Ast.BreakStatementNode,
+		"Break deve ser válido diretamente em for.")
+
+
+func _test_function_context_boundaries() -> void:
+	var invalid := _parse(
+		"while ativo:\n"
+		+ "    def interna():\n"
+		+ "        break\n"
+		+ "        continue\n"
+	)
+	_check(_error_codes(invalid.parser).has("PARSE_BREAK_OUTSIDE_LOOP")
+		and _error_codes(invalid.parser).has("PARSE_CONTINUE_OUTSIDE_LOOP"),
+		"Loop externo não deve autorizar controle dentro de função interna.")
+	var inner_body = invalid.program.statements[0].body.statements[0].body.statements
+	_check(inner_body[0] is Ast.BreakStatementNode and inner_body[1] is Ast.ContinueStatementNode,
+		"Nós contextualmente inválidos devem ser preservados na função interna.")
+
+	var valid := _parse(
+		"def externa():\n"
+		+ "    def interna():\n"
+		+ "        while ativo:\n"
+		+ "            break\n"
+		+ "        for item in itens:\n"
+		+ "            continue\n"
+		+ "    return interna()\n"
+	)
+	_check_no_errors(valid, "Loops na função interna")
+	_check(valid.program.statements[0].body.statements[0] is Ast.FunctionDefinitionNode,
+		"Funções aninhadas devem ser nós normais do BlockNode.")
+
+
+func _test_nested_recursive_and_multiple_functions() -> void:
+	var result := _parse(
+		"def fatorial(n):\n"
+		+ "    if n <= 1:\n"
+		+ "        return 1\n"
+		+ "    return n * fatorial(n - 1)\n"
+		+ "def identidade(valor):\n"
+		+ "    return valor\n"
+		+ "resultado = fatorial(5)\n"
+	)
+	_check_no_errors(result, "Recursão, duas funções e statement posterior")
+	_check(result.program.statements.size() == 3
+		and result.program.statements[0] is Ast.FunctionDefinitionNode
+		and result.program.statements[1] is Ast.FunctionDefinitionNode,
+		"Programa deve preservar duas funções seguidas.")
+	var recursive_return = result.program.statements[0].body.statements[1]
+	_check(recursive_return.value.right is Ast.CallExpressionNode
+		and recursive_return.value.right.callee.name == "fatorial",
+		"Chamada recursiva deve ser representada sem resolução semântica.")
+	_check(result.program.statements[2] is Ast.SimpleAssignmentNode,
+		"Statement após função deve permanecer no nível superior.")
+
+
+func _test_function_header_errors() -> void:
+	var samples := [
+		{"source": "def (): \n    x = 1\n", "code": "PARSE_EXPECTED_FUNCTION_NAME"},
+		{"source": "def f:\n    x = 1\n", "code": "PARSE_EXPECTED_LPAREN"},
+		{"source": "def f(a\n    x = 1\n", "code": "PARSE_EXPECTED_RPAREN", "allow_lex": true},
+		{"source": "def f(a b):\n    x = 1\n", "code": "PARSE_EXPECTED_PARAMETER_SEPARATOR"},
+		{"source": "def f(1):\n    x = 1\n", "code": "PARSE_EXPECTED_PARAMETER"},
+		{"source": "def f(a)\nx = 1\n", "code": "PARSE_EXPECTED_COLON"},
+		{"source": "def f():\nx = 1\n", "code": "PARSE_EXPECTED_FUNCTION_BODY"},
+	]
+	for sample in samples:
+		var result := _parse_allowing_lexical_errors(sample.source) \
+			if sample.get("allow_lex", false) else _parse(sample.source)
+		_check(_error_codes(result.parser).has(sample.code),
+			"Cabeçalho inválido deve produzir %s." % sample.code)
 		_check(result.parser._position <= result.parser.tokens.size(),
-			"Construção não suportada não pode travar o parser.")
+			"Recuperação de cabeçalho deve sempre progredir.")
+
+	var duplicate := _parse("def f(a, a):\n    return a\n")
+	_check(_error_codes(duplicate.parser).has("PARSE_DUPLICATE_PARAMETER"),
+		"Parâmetro duplicado deve produzir diagnóstico próprio.")
+	_check(duplicate.program.statements[0].parameters.size() == 2,
+		"Diagnóstico de duplicidade não deve apagar parâmetros da AST.")
+
+
+func _test_unsupported_function_features() -> void:
+	var samples := [
+		{"source": "def f(a=10):\n    return a\n", "feature": "default_parameter"},
+		{"source": "def f(a: int):\n    return a\n", "feature": "parameter_annotation"},
+		{"source": "def f(*args):\n    return\n", "feature": "variadic_parameter"},
+		{"source": "def f(**kwargs):\n    return\n", "feature": "variadic_parameter"},
+		{"source": "async def f():\n    return\n", "feature": "async_function"},
+	]
+	for sample in samples:
+		var result := _parse(sample.source)
+		_check(_has_error_with_feature(result.parser, sample.feature),
+			"Recurso de função %s deve ser rejeitado sem reinterpretação." % sample.feature)
+
+
+func _test_function_recovery() -> void:
+	var inside := _parse(
+		"def processar():\n"
+		+ "    x =\n"
+		+ "    y = 2\n"
+		+ "    return y\n"
+		+ "depois = 3\n"
+	)
+	_check(_error_codes(inside.parser).has("PARSE_EXPECTED_EXPRESSION"),
+		"Erro dentro da função deve permanecer estruturado.")
+	var function = inside.program.statements[0]
+	_check(function.body.statements.size() == 2
+		and function.body.statements[0].target.name == "y"
+		and function.body.statements[1] is Ast.ReturnStatementNode,
+		"Recuperação interna deve preservar statements válidos posteriores.")
+	_check(inside.program.statements[1].target.name == "depois",
+		"Recuperação não deve consumir statement após a função.")
+
+	var malformed := _parse(
+		"def quebrada(a b):\n"
+		+ "    ignorar = 1\n"
+		+ "valida = 2\n"
+	)
+	_check(malformed.program.statements.size() == 1
+		and malformed.program.statements[0].target.name == "valida",
+		"Cabeçalho inválido deve descartar apenas sua própria suite.")
+
+
+func _test_control_statement_errors_and_preservation() -> void:
+	var outside := _parse("break\ncontinue\n")
+	_check(_error_codes(outside.parser).has("PARSE_BREAK_OUTSIDE_LOOP")
+		and _error_codes(outside.parser).has("PARSE_CONTINUE_OUTSIDE_LOOP"),
+		"Break e continue fora de loop devem produzir erros próprios.")
+	_check(outside.program.statements[0] is Ast.BreakStatementNode
+		and outside.program.statements[1] is Ast.ContinueStatementNode,
+		"Controle contextualmente inválido deve permanecer na AST.")
+
+	var values := _parse(
+		"while True:\n"
+		+ "    break 1\n"
+		+ "    continue valor\n"
+		+ "    depois = 2\n"
+	)
+	_check(_error_codes(values.parser).has("PARSE_UNEXPECTED_VALUE_AFTER_BREAK")
+		and _error_codes(values.parser).has("PARSE_UNEXPECTED_VALUE_AFTER_CONTINUE"),
+		"Expressões após break e continue devem ter diagnósticos específicos.")
+	_check(values.program.statements[0].body.statements.size() == 3,
+		"Nós inválidos e statement posterior devem ser preservados no bloco.")
+
+
+func _test_function_and_control_spans() -> void:
+	var result := _parse(
+		"def soma(a, b,):\n"
+		+ "    while a:\n"
+		+ "        if b:\n"
+		+ "            break\n"
+		+ "        continue\n"
+		+ "    return a + b\n"
+		+ "resultado = soma(1, 2)\n"
+	)
+	_check_no_errors(result, "Spans de funções e controle")
+	var function = result.program.statements[0]
+	_check_span(function.keyword_span, 0, 3, 1, 1, 1, 4, "Span de def")
+	_check_span(function.name_span, 4, 8, 1, 5, 1, 9, "Span do nome da função")
+	_check_span(function.opening_span, 8, 9, 1, 9, 1, 10, "Span de (")
+	_check_span(function.parameters[0].span, 9, 10, 1, 10, 1, 11, "Span do parâmetro a")
+	_check_span(function.parameters[1].span, 12, 13, 1, 13, 1, 14, "Span do parâmetro b")
+	_check_span(function.closing_span, 14, 15, 1, 15, 1, 16, "Span de )")
+	_check_span(function.colon_span, 15, 16, 1, 16, 1, 17, "Span de :")
+	_check_span(function.span, 0, 96, 1, 1, 7, 1,
+		"Span completo da função")
+	var while_node = function.body.statements[0]
+	var if_node = while_node.body.statements[0]
+	_check_span(if_node.if_branch.body.statements[0].span, 56, 61, 4, 13, 4, 18,
+		"Span de break")
+	_check_span(while_node.body.statements[1].span, 70, 78, 5, 9, 5, 17,
+		"Span de continue")
+	_check_span(function.body.statements[1].span, 83, 95, 6, 5, 6, 17,
+		"Span de return")
+
+
+func _test_lexical_error_separation() -> void:
+	var result := _parse_allowing_lexical_errors("def f(a@):\n    return a\nvalor = 1\n")
+	_check(not result.lexer.errors.is_empty(), "Erro léxico deve permanecer no lexer.")
+	_check(result.lexer.errors[0].category == "lexical",
+		"Erro léxico não pode ser convertido em erro sintático.")
+	_check(result.program.statements[-1] is Ast.SimpleAssignmentNode,
+		"Recuperação após erro léxico deve preservar statement posterior.")
+
+
+func _test_recursive_acceptance_example() -> void:
+	var result := _parse(
+		"def somar_precos(codigos, produtos, indice):\n"
+		+ "    if indice >= len(codigos):\n"
+		+ "        return 0\n"
+		+ "\n"
+		+ "    codigo = codigos[indice]\n"
+		+ "    return produtos[codigo][\"preco\"] + somar_precos(\n"
+		+ "        codigos,\n"
+		+ "        produtos,\n"
+		+ "        indice + 1\n"
+		+ "    )\n"
+		+ "\n"
+		+ "produtos = tabela_produtos()\n"
+		+ "total = somar_precos([1042, 2071], produtos, 0)\n"
+		+ "print(total)\n"
+	)
+	_check_no_errors(result, "Exemplo recursivo oficial")
+	_check(result.program.statements.size() == 4,
+		"Exemplo oficial deve conter função e três statements superiores.")
+	var function = result.program.statements[0]
+	_check(function.parameters.map(func(parameter): return parameter.name)
+		== ["codigos", "produtos", "indice"],
+		"Exemplo oficial deve preservar os três parâmetros.")
+	_check(function.body.statements.size() == 3
+		and function.body.statements[0] is Ast.IfStatementNode
+		and function.body.statements[1] is Ast.SimpleAssignmentNode
+		and function.body.statements[2] is Ast.ReturnStatementNode,
+		"Body recursivo deve preservar condição, atribuição e retorno.")
+	var sum = function.body.statements[2].value
+	_check(sum is Ast.BinaryExpressionNode
+		and sum.left is Ast.IndexExpressionNode
+		and sum.right is Ast.CallExpressionNode
+		and sum.right.arguments.size() == 3,
+		"Retorno recursivo deve preservar indexações e chamada multilinha.")
 
 
 func _test_unsupported_python_features() -> void:
@@ -495,14 +793,17 @@ func _test_unsupported_python_features() -> void:
 
 func _test_all_nodes_have_valid_spans() -> void:
 	var result := _parse(
-		"if dados:\n"
-		+ "    for item in dados:\n"
-		+ "        while item:\n"
-		+ "            usar({'x': [obj.metodo(1)[0]],})\n"
-		+ "elif not False or 2 in dados:\n"
-		+ "    valor += 1\n"
-		+ "else:\n"
-		+ "    valor = None\n"
+		"def processar(dados,):\n"
+		+ "    if dados:\n"
+		+ "        for item in dados:\n"
+		+ "            while item:\n"
+		+ "                usar({'x': [obj.metodo(1)[0]],})\n"
+		+ "                break\n"
+		+ "    elif not False or 2 in dados:\n"
+		+ "        valor += 1\n"
+		+ "    else:\n"
+		+ "        return None\n"
+		+ "    return\n"
 	)
 	_check_no_errors(result, "Validação recursiva de spans")
 	_walk_and_check_spans(result.program, "program")
@@ -540,6 +841,13 @@ func _walk_and_check_spans(node, path: String) -> void:
 		_walk_and_check_spans(node.target, path + ".target")
 		_walk_and_check_spans(node.iterable, path + ".iterable")
 		_walk_and_check_spans(node.body, path + ".body")
+	elif node is Ast.FunctionDefinitionNode:
+		for index in range(node.parameters.size()):
+			_walk_and_check_spans(node.parameters[index], "%s.parameter[%d]" % [path, index])
+		_walk_and_check_spans(node.body, path + ".body")
+	elif node is Ast.ReturnStatementNode:
+		if node.value != null:
+			_walk_and_check_spans(node.value, path + ".value")
 	elif node is Ast.SimpleAssignmentNode or node is Ast.CompoundAssignmentNode:
 		_walk_and_check_spans(node.target, path + ".target")
 		_walk_and_check_spans(node.value, path + ".value")
@@ -576,7 +884,16 @@ func _walk_and_check_spans(node, path: String) -> void:
 func _parse(source: String) -> Dictionary:
 	var lexer = LexerScript.new(source)
 	var tokens = lexer.tokenize()
-	_check(lexer.errors.is_empty(), "Fonte do teste não deveria ter erros léxicos: %s" % [lexer.errors])
+	_check(lexer.errors.is_empty(), "Fonte do teste não deveria ter erros léxicos: %s em %s" \
+		% [lexer.errors, source])
+	var parser = ParserScript.new(tokens)
+	var program = parser.parse()
+	return {"lexer": lexer, "parser": parser, "program": program}
+
+
+func _parse_allowing_lexical_errors(source: String) -> Dictionary:
+	var lexer = LexerScript.new(source)
+	var tokens = lexer.tokenize()
 	var parser = ParserScript.new(tokens)
 	var program = parser.parse()
 	return {"lexer": lexer, "parser": parser, "program": program}

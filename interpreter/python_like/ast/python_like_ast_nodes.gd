@@ -207,6 +207,71 @@ class ForStatementNode extends StatementNode:
 		colon_span = loop_colon_span
 
 
+class ParameterNode extends AstNode:
+	var name: String
+	var name_span: SourceSpan
+
+	func _init(parameter_name: String, source_span: SourceSpan) -> void:
+		super("parameter", source_span)
+		name = parameter_name
+		name_span = source_span
+
+
+class FunctionDefinitionNode extends StatementNode:
+	var name: String
+	var name_span: SourceSpan
+	var parameters: Array
+	var body: BlockNode
+	var keyword_span: SourceSpan
+	var opening_span: SourceSpan
+	var closing_span: SourceSpan
+	var comma_spans: Array
+	var colon_span: SourceSpan
+
+	func _init(function_name: String, function_name_span: SourceSpan,
+			function_parameters: Array, function_body: BlockNode,
+			source_span: SourceSpan, function_keyword_span: SourceSpan,
+			function_opening_span: SourceSpan, function_closing_span: SourceSpan,
+			function_comma_spans: Array, function_colon_span: SourceSpan) -> void:
+		super("function_definition", source_span)
+		name = function_name
+		name_span = function_name_span
+		parameters = function_parameters
+		body = function_body
+		keyword_span = function_keyword_span
+		opening_span = function_opening_span
+		closing_span = function_closing_span
+		comma_spans = function_comma_spans
+		colon_span = function_colon_span
+
+
+class ReturnStatementNode extends StatementNode:
+	var value
+	var keyword_span: SourceSpan
+
+	func _init(return_value, source_span: SourceSpan,
+			return_keyword_span: SourceSpan) -> void:
+		super("return_statement", source_span)
+		value = return_value
+		keyword_span = return_keyword_span
+
+
+class BreakStatementNode extends StatementNode:
+	var keyword_span: SourceSpan
+
+	func _init(source_span: SourceSpan) -> void:
+		super("break_statement", source_span)
+		keyword_span = source_span
+
+
+class ContinueStatementNode extends StatementNode:
+	var keyword_span: SourceSpan
+
+	func _init(source_span: SourceSpan) -> void:
+		super("continue_statement", source_span)
+		keyword_span = source_span
+
+
 class IntegerLiteralNode extends ExpressionNode:
 	var value: int
 	var lexeme: String
