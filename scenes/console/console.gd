@@ -1,278 +1,300 @@
-extends Control
-const Workspace = preload("res://systems/ScriptWorkspace.gd")
+extends "res://scenes/console/components/ide_workspace_view.gd"
 
+signal close_requested
 var context
-@onready var code_edit: CodeEdit = $Panel/VBoxContainer/EditorFrame/CodeEdit
-@onready var status_label: Label = $Panel/VBoxContainer/Header/StatusLabel
-@onready var run_button: Button = $Panel/VBoxContainer/Header/Run
-@onready var stop_button: Button = $Panel/VBoxContainer/Header/Stop
-@onready var stop_all_button: Button = $Panel/VBoxContainer/Header/StopAll
-@onready var language_button: OptionButton = $Panel/VBoxContainer/Header/Language
-@onready var new_tab_button: Button = $Panel/VBoxContainer/TabsRow/NewTab
-@onready var tab_bar: TabBar = $Panel/VBoxContainer/TabsRow/TabBar
-@onready var rename_tab_button: Button = $Panel/VBoxContainer/TabsRow/RenameTab
-@onready var delete_tab_button: Button = $Panel/VBoxContainer/TabsRow/DeleteTab
-
-var _script_ids_by_tab: Array[String] = []
-var _is_loading_source := false
-var _is_refreshing_tabs := false
+var _loading := false
+var _loaded_id := ""
+var _caret_by_script := {}
 var _rename_dialog: ConfirmationDialog
 var _rename_line_edit: LineEdit
 var _delete_dialog: ConfirmationDialog
+var _dialog_script_id := ""
 
 func _ready() -> void:
-	EventBus.update_context.connect(context_updt)
+	build()
 	context = GameManager.current_context
-	_setup_tab_controls()
-	_setup_language_selector()
-	_setup_dialogs()
-	_refresh_tabs()
-	_load_active_script_into_editor()
+	EventBus.update_context.connect(context_updt)
+	InterpreterSystem.workspace_changed.connect(_sync_documents)
+	InterpreterSystem.runtime_manager.runtimes_changed.connect(_update_status)
+	FeatureManager.feature_unlocked.connect(_on_progress_changed)
+	UpgradeManager.upgrade_comprado.connect(_on_progress_changed)
+	explorer.document_selected.connect(open_document)
+	explorer.script_menu_requested.connect(_show_script_menu)
+	tabs.document_selected.connect(open_document)
 	code_edit.text_changed.connect(_on_code_text_changed)
-	code_edit.focus_exited.connect(_on_code_focus_exited)
-	_connect_execution_signals()
-	FeatureManager.feature_unlocked.connect(_on_feature_unlocked)
-	_update_status()
-
-func _setup_tab_controls() -> void:
-	new_tab_button.pressed.connect(_on_new_tab_pressed)
-	rename_tab_button.pressed.connect(_on_rename_tab_pressed)
-	delete_tab_button.pressed.connect(_on_delete_tab_pressed)
-	tab_bar.tab_changed.connect(_on_tab_changed)
-
-func _setup_language_selector() -> void:
-	language_button.clear()
-	language_button.add_item("C-like", 0)
-	language_button.set_item_metadata(0, Workspace.DEFAULT_LANGUAGE)
-	language_button.add_item("Python", 1)
-	language_button.set_item_metadata(1, Workspace.PYTHON_LIKE_LANGUAGE)
+	code_edit.caret_changed.connect(_update_caret)
+	code_edit.focus_exited.connect(persist_source)
+	new_button.pressed.connect(_on_new_tab_pressed)
+	run_button.pressed.connect(_on_run_pressed)
+	stop_button.pressed.connect(_on_stop_pressed)
+	close_button.pressed.connect(func(): close_requested.emit())
+	output.stop_all_requested.connect(InterpreterSystem.stop_all)
 	language_button.item_selected.connect(_on_language_selected)
-	_refresh_language_selector()
+	_setup_dialogs()
+	_sync_documents()
 
 func _setup_dialogs() -> void:
+	var popup := menu_button.get_popup()
+	popup.add_item("Renomear", 0)
+	popup.add_item("Duplicar", 1)
+	popup.add_separator()
+	popup.add_item("Excluir…", 2)
+	popup.id_pressed.connect(_script_action)
+	menu_button.about_to_popup.connect(_update_menu)
 	_rename_dialog = ConfirmationDialog.new()
 	_rename_dialog.title = "Renomear script"
+	_rename_dialog.transient = true
 	_rename_line_edit = LineEdit.new()
-	_rename_line_edit.custom_minimum_size = Vector2(280, 28)
+	_rename_line_edit.custom_minimum_size = Vector2(280, 40)
+	_rename_line_edit.text_submitted.connect(func(_text): _on_rename_confirmed(); _rename_dialog.hide())
 	_rename_dialog.add_child(_rename_line_edit)
 	_rename_dialog.confirmed.connect(_on_rename_confirmed)
 	add_child(_rename_dialog)
-
 	_delete_dialog = ConfirmationDialog.new()
-	_delete_dialog.title = "Apagar script"
-	_delete_dialog.dialog_text = "Apagar este script?"
+	_delete_dialog.title = "Excluir script"
+	_delete_dialog.dialog_autowrap = true
+	_delete_dialog.min_size = Vector2i(300, 140)
 	_delete_dialog.confirmed.connect(_on_delete_confirmed)
 	add_child(_delete_dialog)
 
-func _connect_execution_signals() -> void:
-	var changed := Callable(self, "_on_runtimes_changed")
-	if not InterpreterSystem.runtime_manager.is_connected("runtimes_changed", changed):
-		InterpreterSystem.runtime_manager.connect("runtimes_changed", changed)
-	if not InterpreterSystem.is_connected("execution_stopped", changed):
-		InterpreterSystem.connect("execution_stopped", changed)
-
-func _on_fechar_pressed() -> void:
-	get_window().hide()
-
-func _on_minimizar_toggled(toggled_on: bool) -> void:
-	if toggled_on:
-		get_window().size.y = 37
+func open_document(kind: String, id: String) -> void:
+	if kind == "help":
+		if not documentation.show_topic(id):
+			status_label.text = "Documentação bloqueada · avance no mercado para liberar."
+			return
+		_save_editor_to_active_script()
+		_remember_caret()
+		code_edit.hide()
+		documentation.show()
+		find_bar.hide()
 	else:
-		get_window().size.y = 252
+		_save_editor_to_active_script()
+		_remember_caret()
+		InterpreterSystem.set_active_script(id)
+		_load_active_script_into_editor()
+		code_edit.show()
+		documentation.hide()
+	tabs.activate(kind, id)
+	explorer.select_document(kind, id)
+	documents.show()
+	if size.y < 480:
+		output.hide()
+	reveal_document()
+	_update_status()
+	if kind == "script" and is_visible_in_tree():
+		code_edit.grab_focus()
 
-
-func _on_run_pressed() -> void:
-	var active_id := str(InterpreterSystem.get_active_script().get("id", ""))
-	if InterpreterSystem.is_script_running(active_id):
-		return
-	_save_editor_to_active_script()
-	var runtime_id := InterpreterSystem.start_active_script(context)
-	if runtime_id.is_empty():
-		return
-	Saves.solicitar_save("script_executado")
-	code_edit.release_focus()
-
-
-func _on_stop_pressed() -> void:
-	InterpreterSystem.stop_active_script()
-
-func _on_stop_all_pressed() -> void:
-	InterpreterSystem.stop_all()
-
-func context_updt(ctx):
-	context = ctx.env_context
-
-func _on_runtimes_changed() -> void:
-	_refresh_tabs()
+func _sync_documents() -> void:
+	explorer.refresh_scripts()
+	var id := str(InterpreterSystem.get_active_script().id)
+	if _loaded_id != id:
+		_load_active_script_into_editor()
+		code_edit.show()
+		documentation.hide()
+		tabs.active_kind = "script"
+		tabs.active_id = id
+	elif code_edit.text != InterpreterSystem.get_active_source():
+		_load_active_script_into_editor()
+	else:
+		_refresh_language_selector()
+	tabs.refresh()
+	explorer.select_document(tabs.active_kind, tabs.active_id)
 	_update_status()
 
-func _update_status() -> void:
-	var active_id := str(InterpreterSystem.get_active_script().get("id", ""))
-	var is_active := InterpreterSystem.is_script_running(active_id)
-	var has_running := not InterpreterSystem.get_running_runtimes().is_empty()
-	if is_active:
-		var runtime := InterpreterSystem.get_runtime_by_script_id(active_id)
-		if str(runtime.get("status", "")) == "sleeping":
-			status_label.text = "DORMINDO"
-			status_label.theme_type_variation = &"SleepingLabel"
-		else:
-			status_label.text = "RODANDO"
-			status_label.theme_type_variation = &"SuccessLabel"
-		run_button.disabled = true
-		stop_button.disabled = false
-	else:
-		var runtime := InterpreterSystem.get_runtime_by_script_id(active_id)
-		if str(runtime.get("status", "")) == "error":
-			status_label.text = "ERRO"
-			status_label.theme_type_variation = &"ErrorLabel"
-		else:
-			status_label.text = "PARADO"
-			status_label.theme_type_variation = &"WarningLabel"
-		run_button.disabled = false
-		stop_button.disabled = true
-	stop_all_button.disabled = not has_running
+func _load_active_script_into_editor() -> void:
+	_loading = true
+	_loaded_id = str(InterpreterSystem.get_active_script().id)
+	if code_edit.text != InterpreterSystem.get_active_source():
+		code_edit.text = InterpreterSystem.get_active_source()
+	_loading = false
+	_refresh_language_selector()
+	if _caret_by_script.has(_loaded_id):
+		var position: Vector3 = _caret_by_script[_loaded_id]
+		code_edit.set_caret_line(int(position.x))
+		code_edit.set_caret_column(int(position.y))
+		code_edit.scroll_vertical = position.z
+	find_bar.refresh()
 
-func _on_code_text_changed() -> void:
-	if _is_loading_source:
-		return
-	InterpreterSystem.update_active_source(code_edit.text)
+func _remember_caret() -> void:
+	if not _loaded_id.is_empty():
+		_caret_by_script[_loaded_id] = Vector3(code_edit.get_caret_line(), code_edit.get_caret_column(), code_edit.scroll_vertical)
 
-func _on_code_focus_exited() -> void:
+func _save_editor_to_active_script() -> void:
+	if not _loading and _loaded_id == str(InterpreterSystem.get_active_script().id):
+		InterpreterSystem.update_active_source(code_edit.text)
+
+func persist_source() -> void:
 	_save_editor_to_active_script()
+	_remember_caret()
 	Saves.solicitar_save("script_editado")
 
-func _on_language_selected(index: int) -> void:
-	var language := str(language_button.get_item_metadata(index))
-	if not InterpreterSystem.set_active_script_language(language):
-		_refresh_language_selector()
-		return
-	Saves.solicitar_save("script_linguagem_alterada")
-
-func _refresh_language_selector() -> void:
-	var active_script := InterpreterSystem.get_active_script()
-	var language := str(active_script.get("language", Workspace.DEFAULT_LANGUAGE))
-	for index in range(language_button.get_item_count()):
-		if str(language_button.get_item_metadata(index)) == language:
-			language_button.select(index)
-			return
-	language_button.select(0)
-
 func set_code_text(text: String) -> void:
-	_is_loading_source = true
+	open_document("script", str(InterpreterSystem.get_active_script().id))
 	code_edit.text = text
-	_is_loading_source = false
-	InterpreterSystem.update_active_source(text)
+	_save_editor_to_active_script()
 	Saves.solicitar_save("script_tutorial")
 
 func get_code_text() -> String:
 	return code_edit.text
 
-func _save_editor_to_active_script() -> void:
-	if _is_loading_source:
-		return
-	InterpreterSystem.update_active_source(code_edit.text)
+func _on_code_text_changed() -> void:
+	_save_editor_to_active_script()
+	find_bar.refresh()
 
-func _load_active_script_into_editor() -> void:
-	_is_loading_source = true
-	code_edit.text = InterpreterSystem.get_active_source()
-	_is_loading_source = false
-	_refresh_language_selector()
+func _refresh_language_selector() -> void:
+	var language := str(InterpreterSystem.get_active_script().get("language", "c_like"))
+	language_button.select(1 if language == "python_like" else 0)
+	if code_edit.language_id != language or code_edit.profile.is_empty():
+		code_edit.configure_for_language(language)
 
-func _refresh_tabs() -> void:
-	_is_refreshing_tabs = true
-	_script_ids_by_tab.clear()
-	tab_bar.clear_tabs()
-
-	var scripts := InterpreterSystem.get_scripts()
-	var active_id := str(InterpreterSystem.get_active_script().get("id", ""))
-	var active_index := 0
-
-	for index in range(scripts.size()):
-		var script: Dictionary = scripts[index]
-		var id := str(script.get("id", ""))
-		var title := str(script.get("title", "Sem nome"))
-		_script_ids_by_tab.append(id)
-		if InterpreterSystem.is_script_running(id):
-			var runtime := InterpreterSystem.get_runtime_by_script_id(id)
-			if str(runtime.get("status", "")) == "sleeping":
-				title += " ~"
-			else:
-				title += " *"
-		else:
-			var runtime := InterpreterSystem.get_runtime_by_script_id(id)
-			if str(runtime.get("status", "")) == "error":
-				title += " !"
-		tab_bar.add_tab(title)
-		if id == active_id:
-			active_index = index
-
-	if tab_bar.get_tab_count() > 0:
-		tab_bar.current_tab = active_index
-
-	var active_reserved := InterpreterSystem.is_reserved_script(active_id)
-	delete_tab_button.disabled = scripts.size() <= 1 or active_reserved
-	rename_tab_button.disabled = active_reserved
-	_is_refreshing_tabs = false
-
-func _on_feature_unlocked(feature_id: String) -> void:
-	if feature_id != FeatureManager.FEATURE_DELIVERY:
-		return
-	InterpreterSystem.ensure_delivery_script()
-	_refresh_tabs()
-
-func _on_tab_changed(tab: int) -> void:
-	if _is_refreshing_tabs:
-		return
-	if tab < 0 or tab >= _script_ids_by_tab.size():
+func _on_language_selected(index: int) -> void:
+	if tabs.active_kind != "script" or InterpreterSystem.is_script_running(_loaded_id):
+		_refresh_language_selector()
 		return
 	_save_editor_to_active_script()
-	InterpreterSystem.set_active_script(_script_ids_by_tab[tab])
-	_load_active_script_into_editor()
+	InterpreterSystem.set_active_script_language("python_like" if index == 1 else "c_like")
+	Saves.solicitar_save("script_linguagem_alterada")
+
+func _on_run_pressed() -> void:
+	if tabs.active_kind != "script" or InterpreterSystem.is_script_running(_loaded_id):
+		return
+	_save_editor_to_active_script()
+	if size.y >= 480:
+		output.show()
+	if not InterpreterSystem.start_active_script(context).is_empty():
+		Saves.solicitar_save("script_executado")
 	_update_status()
 
+func _on_stop_pressed() -> void:
+	if tabs.active_kind == "script":
+		InterpreterSystem.stop_active_script()
+
+func _update_status() -> void:
+	var running := InterpreterSystem.is_script_running(_loaded_id)
+	var help_active: bool = tabs.active_kind == "help"
+	run_button.disabled = help_active or running
+	stop_button.disabled = help_active or not running
+	language_button.disabled = help_active or running
+	menu_button.disabled = help_active
+	output.stop_all_button.disabled = InterpreterSystem.get_running_runtimes().is_empty()
+	var state := str(InterpreterSystem.get_runtime_by_script_id(_loaded_id).get("status", "stopped"))
+	status_label.text = "Documentação · somente leitura" if help_active else "%s   ·   %s" % [language_button.get_item_text(language_button.selected), Explorer.STATES.get(state, "PARADO")]
+	status_label.theme_type_variation = &"Label"
+	if not help_active:
+		if state == "error":
+			status_label.theme_type_variation = &"IDEError"
+		elif state == "sleeping":
+			status_label.theme_type_variation = &"IDESleeping"
+		elif running:
+			status_label.theme_type_variation = &"IDEWorking"
+	explorer.refresh_states()
+	for index in range(tabs.get_tab_count()):
+		var data: Dictionary = tabs.get_tab_metadata(index)
+		if data.kind == "script":
+			var runtime_state := str(InterpreterSystem.get_runtime_by_script_id(data.id).get("status", "stopped"))
+			tabs.set_tab_icon(index, tabs.STATE_ICONS.get(runtime_state))
+			tabs.set_tab_tooltip(index, tabs.get_tab_title(index) + " — " + Explorer.STATES.get(runtime_state, "PARADO"))
+	_update_caret()
+
+func _update_caret() -> void:
+	caret_label.text = "" if tabs.active_kind == "help" else "Ln %d, Col %d" % [code_edit.get_caret_line() + 1, code_edit.get_caret_column() + 1]
+
+func context_updt(ctx) -> void:
+	context = ctx.env_context
+
+func _on_progress_changed(_id: String) -> void:
+	if FeatureManager.has_feature(FeatureManager.FEATURE_DELIVERY):
+		InterpreterSystem.ensure_delivery_script()
+	explorer.refresh_topics()
+	_sync_documents()
+
 func _on_new_tab_pressed() -> void:
-	_save_editor_to_active_script()
+	persist_source()
 	var id := InterpreterSystem.create_script()
-	InterpreterSystem.set_active_script(id)
-	_refresh_tabs()
-	_load_active_script_into_editor()
+	open_document("script", id)
 	Saves.solicitar_save("script_criado")
 
-func _on_rename_tab_pressed() -> void:
-	if InterpreterSystem.is_reserved_script(str(InterpreterSystem.get_active_script().get("id", ""))):
-		return
-	_save_editor_to_active_script()
-	_rename_line_edit.text = InterpreterSystem.get_active_script_title()
-	_rename_line_edit.select_all()
-	_rename_dialog.popup_centered()
-	_rename_line_edit.grab_focus()
+func _update_menu() -> void:
+	var reserved := InterpreterSystem.is_reserved_script(_loaded_id)
+	menu_button.get_popup().set_item_disabled(0, reserved)
+	menu_button.get_popup().set_item_disabled(3, reserved or InterpreterSystem.get_scripts().size() <= 1)
+
+func _show_script_menu(id: String) -> void:
+	open_document("script", id)
+	_update_menu()
+	menu_button.get_popup().position = Vector2i(get_global_mouse_position())
+	menu_button.get_popup().popup()
+
+func _script_action(action: int) -> void:
+	_dialog_script_id = _loaded_id
+	match action:
+		0:
+			if InterpreterSystem.is_reserved_script(_dialog_script_id):
+				return
+			_rename_line_edit.text = InterpreterSystem.get_active_script_title()
+			_rename_dialog.popup_centered()
+			_rename_line_edit.grab_focus()
+			_rename_line_edit.select_all()
+		1:
+			persist_source()
+			open_document("script", InterpreterSystem.duplicate_script(_loaded_id))
+			Saves.solicitar_save("script_duplicado")
+		2:
+			if InterpreterSystem.is_reserved_script(_dialog_script_id):
+				return
+			_delete_dialog.dialog_text = 'Excluir "%s"? Esta ação remove seu código.' % InterpreterSystem.get_active_script_title()
+			_delete_dialog.popup_centered(Vector2i(400, 160))
 
 func _on_rename_confirmed() -> void:
-	var active_id := str(InterpreterSystem.get_active_script().get("id", ""))
-	InterpreterSystem.rename_script(active_id, _rename_line_edit.text)
-	_refresh_tabs()
+	InterpreterSystem.rename_script(_dialog_script_id, _rename_line_edit.text)
 	Saves.solicitar_save("script_renomeado")
 
-func _on_delete_tab_pressed() -> void:
-	if InterpreterSystem.is_reserved_script(str(InterpreterSystem.get_active_script().get("id", ""))):
-		EventBus.emit_signal("send_debug", "A aba Delivery faz parte da automação final e não pode ser apagada.")
-		return
-	if InterpreterSystem.get_scripts().size() <= 1:
-		EventBus.emit_signal("send_debug", "Não dá para apagar o último script.")
-		return
-	_save_editor_to_active_script()
-	_delete_dialog.popup_centered()
-
 func _on_delete_confirmed() -> void:
-	var active_id := str(InterpreterSystem.get_active_script().get("id", ""))
-	if not InterpreterSystem.delete_script(active_id):
-		EventBus.emit_signal("send_debug", "Não consegui apagar esse script.")
-		return
-	_refresh_tabs()
-	_load_active_script_into_editor()
+	InterpreterSystem.delete_script(_dialog_script_id)
+	_caret_by_script.erase(_dialog_script_id)
 	Saves.solicitar_save("script_apagado")
 
+func handle_escape() -> void:
+	if code_edit.get_code_completion_selected_index() >= 0:
+		code_edit.cancel_code_completion()
+		return
+	if menu_button.get_popup().visible:
+		menu_button.get_popup().hide()
+	elif code_edit.get_menu().visible:
+		code_edit.get_menu().hide()
+	elif _rename_dialog.visible:
+		_rename_dialog.hide()
+	elif _delete_dialog.visible:
+		_delete_dialog.hide()
+	elif find_bar.visible:
+		find_bar.close()
+	elif _compact_explorer:
+		toggle_explorer()
+	else:
+		close_requested.emit()
+
+func _input(event: InputEvent) -> void:
+	if not is_visible_in_tree() or not event is InputEventKey or not event.pressed:
+		return
+	if event.is_action_pressed("ui_cancel"):
+		handle_escape()
+		get_viewport().set_input_as_handled()
+	elif event.ctrl_pressed or event.meta_pressed:
+		match event.keycode:
+			KEY_F:
+				if tabs.active_kind == "script":
+					find_bar.open()
+				get_viewport().set_input_as_handled()
+			KEY_S:
+				persist_source()
+				get_viewport().set_input_as_handled()
+			KEY_ENTER:
+				_on_run_pressed()
+				get_viewport().set_input_as_handled()
+			KEY_TAB:
+				explorer.grab_focus()
+				get_viewport().set_input_as_handled()
+
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.pressed:
-		if code_edit.has_focus() and not code_edit.get_global_rect().has_point(event.position):
-			code_edit.release_focus()
+	if is_visible_in_tree() and event is InputEventKey:
+		get_viewport().set_input_as_handled()

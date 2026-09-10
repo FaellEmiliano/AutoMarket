@@ -9,7 +9,7 @@ const DeliveryConfigData = preload("res://data/DeliveryConfig.gd")
 @onready var dinheiro_label: Label = $VBoxContainer/ColorRect/VBoxContainer/Dinheiro
 @onready var dinheiro_panel: NinePatchRect = $VBoxContainer/ColorRect
 @onready var hud = $HUD
-@onready var script_menu: VBoxContainer = $ScriptMenu
+@onready var script_menu: Control = $ScriptMenu
 @onready var shop_menu: HBoxContainer = $ShopMenu
 @onready var estoque_panel: NinePatchRect = $VBoxContainer/Estoque
 @onready var delivery_panel_button: NinePatchRect = $VBoxContainer/Delivery
@@ -119,6 +119,8 @@ func _update_debug_hotspot() -> void:
 	debug_hotspot.visible = GameManager.secret_menu_unlocked
 
 func _unhandled_input(event: InputEvent) -> void:
+	if script_menu.is_aberto():
+		return
 	if not event.is_action_pressed("ui_cancel"):
 		return
 	if help_menu.visible or (_debug_menu != null and is_instance_valid(_debug_menu) and _debug_menu.visible):

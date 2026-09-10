@@ -1,6 +1,7 @@
 extends Node
 
 signal execution_stopped
+signal workspace_changed
 
 const ScriptWorkspace = preload("res://systems/ScriptWorkspace.gd")
 const ScriptRuntimeManagerScript = preload("res://systems/ScriptRuntimeManager.gd")
@@ -106,26 +107,34 @@ func get_script_text() -> String:
 	return script_text
 
 func create_script(title: String = "") -> String:
-	return script_workspace.create_script(title)
+	var id := script_workspace.create_script(title)
+	workspace_changed.emit()
+	return id
 
 func delete_script(id: String) -> bool:
 	runtime_manager.stop_script(id)
 	var deleted := script_workspace.delete_script(id)
 	script_text = script_workspace.get_active_source()
+	workspace_changed.emit()
 	return deleted
 
 func rename_script(id: String, new_title: String) -> void:
 	script_workspace.rename_script(id, new_title)
+	workspace_changed.emit()
 
 func set_active_script(id: String) -> void:
 	script_workspace.set_active_script(id)
 	script_text = script_workspace.get_active_source()
+	workspace_changed.emit()
 
 func update_active_source(source: String) -> void:
 	set_script_text(source)
 
 func set_active_script_language(language: String) -> bool:
-	return script_workspace.set_active_language(language)
+	var changed := script_workspace.set_active_language(language)
+	if changed:
+		workspace_changed.emit()
+	return changed
 
 func get_active_source() -> String:
 	return get_script_text()
@@ -140,7 +149,11 @@ func get_scripts() -> Array:
 	return script_workspace.scripts.duplicate(true)
 
 func ensure_delivery_script() -> String:
-	return script_workspace.ensure_delivery_script()
+	var previous := script_workspace.delivery_script_id
+	var id := script_workspace.ensure_delivery_script()
+	if previous != id:
+		workspace_changed.emit()
+	return id
 
 func get_delivery_script_id() -> String:
 	return script_workspace.delivery_script_id
@@ -162,3 +175,9 @@ func load_save_data(data: Dictionary) -> void:
 	runtime_manager.reset()
 	script_workspace.deserialize(data)
 	script_text = script_workspace.get_active_source()
+	workspace_changed.emit()
+
+func duplicate_script(id: String) -> String:
+	var duplicate_id := script_workspace.duplicate_script(id)
+	workspace_changed.emit()
+	return duplicate_id

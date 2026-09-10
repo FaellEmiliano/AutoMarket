@@ -1,0 +1,115 @@
+extends RefCounted
+
+const MONO = preload("res://assets/fonts/JetBrainsMono-VariableFont_wght.ttf")
+const INK := Color("dce4e8")
+const MUTED := Color("8d9da7")
+const ACCENT := Color("cfb578")
+const BG := Color("12191e")
+const SURFACE := Color("192229")
+const SELECTED := Color("31444c")
+
+static func box(color: Color, padding: int = 8, border: Color = Color.TRANSPARENT) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = color
+	style.set_content_margin_all(padding)
+	style.set_corner_radius_all(3)
+	style.border_color = border
+	style.set_border_width_all(1 if border.a > 0 else 0)
+	return style
+
+static func create() -> Theme:
+	var theme := Theme.new()
+	# A local theme keeps the game's pixel typography out of long-form reading.
+	var ui_font := SystemFont.new()
+	ui_font.font_names = PackedStringArray(["Segoe UI", "Arial", "sans-serif"])
+	theme.default_font = ui_font
+	theme.default_font_size = 15
+	for type in ["Label", "Button", "OptionButton", "LineEdit", "Tree", "TabBar", "PopupMenu"]:
+		theme.set_font("font", type, ui_font)
+		theme.set_font_size("font_size", type, 15)
+		theme.set_constant("outline_size", type, 0)
+		theme.set_color("font_color", type, INK)
+		theme.set_color("font_disabled_color", type, Color("65737d"))
+		theme.set_color("font_hover_color", type, Color.WHITE)
+		theme.set_color("font_pressed_color", type, INK)
+		theme.set_color("font_focus_color", type, INK)
+	for type in ["Button", "OptionButton", "LineEdit"]:
+		theme.set_stylebox("normal", type, box(SURFACE))
+		theme.set_stylebox("hover", type, box(Color("29363f")))
+		theme.set_stylebox("pressed", type, box(SELECTED))
+		theme.set_stylebox("disabled", type, box(BG))
+		theme.set_stylebox("focus", type, box(Color.TRANSPARENT, 8, ACCENT))
+	theme.set_color("caret_color", "LineEdit", INK)
+	theme.set_color("selection_color", "LineEdit", SELECTED)
+	for type in ["PanelContainer", "PopupMenu", "AcceptDialog"]:
+		theme.set_stylebox("panel", type, box(SURFACE, 8))
+	theme.set_type_variation("IDEPrimaryButton", "Button")
+	theme.set_stylebox("normal", "IDEPrimaryButton", box(Color("354740"), 8, Color("526657")))
+	theme.set_type_variation("IDESectionLabel", "Label")
+	theme.set_font_size("font_size", "IDESectionLabel", 12)
+	theme.set_color("font_color", "IDESectionLabel", MUTED)
+	theme.set_type_variation("IDETitle", "Label")
+	theme.set_font_size("font_size", "IDETitle", 24)
+	var status_colors := {"IDEError": Color("e9a28e"), "IDEWorking": Color("a6c98e"), "IDESleeping": ACCENT}
+	for variation in status_colors:
+		theme.set_type_variation(variation, "Label")
+		theme.set_color("font_color", variation, status_colors[variation])
+	theme.set_type_variation("IDEStatus", "PanelContainer")
+	theme.set_stylebox("panel", "IDEStatus", box(Color("202e33"), 4))
+	theme.set_stylebox("panel", "Tree", box(SURFACE, 4))
+	theme.set_stylebox("selected", "Tree", box(SELECTED, 4))
+	theme.set_stylebox("selected_focus", "Tree", box(SELECTED, 4, ACCENT))
+	theme.set_stylebox("hovered", "Tree", box(Color("243139"), 4))
+	theme.set_constant("v_separation", "Tree", 8)
+	theme.set_constant("indent", "Tree", 12)
+	theme.set_constant("draw_guides", "Tree", 0)
+	theme.set_color("guide_color", "Tree", Color.TRANSPARENT)
+	theme.set_stylebox("tab_selected", "TabBar", box(BG, 12, Color("526267")))
+	theme.set_stylebox("tab_unselected", "TabBar", box(SURFACE, 12))
+	theme.set_stylebox("tab_hovered", "TabBar", box(Color("29363f"), 12))
+	theme.set_color("font_selected_color", "TabBar", INK)
+	theme.set_color("font_unselected_color", "TabBar", MUTED)
+	for type in ["CodeEdit", "TextEdit"]:
+		theme.set_font("font", type, MONO)
+		theme.set_font_size("font_size", type, 16)
+		theme.set_stylebox("normal", type, box(BG, 16))
+		theme.set_stylebox("focus", type, box(Color.TRANSPARENT, 16, Color("35464e")))
+		theme.set_constant("outline_size", type, 0)
+		theme.set_color("font_color", type, INK)
+		theme.set_color("background_color", type, BG)
+		theme.set_color("caret_color", type, ACCENT)
+		theme.set_color("selection_color", type, SELECTED)
+		theme.set_color("current_line_color", type, Color("1c282e"))
+		theme.set_constant("line_spacing", type, 4)
+	theme.set_color("line_number_color", "CodeEdit", MUTED)
+	theme.set_stylebox("completion", "CodeEdit", box(SURFACE, 8, Color("526267")))
+	theme.set_color("completion_background_color", "CodeEdit", SURFACE)
+	theme.set_color("completion_selected_color", "CodeEdit", SELECTED)
+	theme.set_color("completion_scroll_color", "CodeEdit", MUTED)
+	theme.set_color("completion_scroll_hovered_color", "CodeEdit", ACCENT)
+	theme.set_constant("completion_lines", "CodeEdit", 8)
+	theme.set_constant("completion_max_width", "CodeEdit", 36)
+	theme.set_constant("completion_scroll_width", "CodeEdit", 8)
+	theme.set_font("normal_font", "RichTextLabel", ui_font)
+	var bold_font := ui_font.duplicate()
+	bold_font.font_weight = 700
+	theme.set_font("bold_font", "RichTextLabel", bold_font)
+	theme.set_font_size("normal_font_size", "RichTextLabel", 16)
+	theme.set_font_size("bold_font_size", "RichTextLabel", 16)
+	theme.set_font_size("mono_font_size", "RichTextLabel", 16)
+	theme.set_constant("outline_size", "RichTextLabel", 0)
+	theme.set_color("default_color", "RichTextLabel", INK)
+	theme.set_font("mono_font", "RichTextLabel", MONO)
+	theme.set_color("font_outline_color", "RichTextLabel", Color.TRANSPARENT)
+	theme.set_constant("line_separation", "RichTextLabel", 6)
+	theme.set_type_variation("IDEOutput", "RichTextLabel")
+	theme.set_font("normal_font", "IDEOutput", MONO)
+	theme.set_font_size("normal_font_size", "IDEOutput", 14)
+	for type in ["HScrollBar", "VScrollBar"]:
+		theme.set_stylebox("scroll", type, box(BG, 4))
+		theme.set_stylebox("grabber", type, box(Color("3a4b55"), 4))
+		theme.set_stylebox("grabber_highlight", type, box(Color("61747d"), 4))
+		theme.set_stylebox("grabber_pressed", type, box(ACCENT, 4))
+	for type in ["HSplitContainer", "VSplitContainer"]:
+		theme.set_constant("separation", type, 8)
+	return theme

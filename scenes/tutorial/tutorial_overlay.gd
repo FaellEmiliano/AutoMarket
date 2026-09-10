@@ -52,7 +52,13 @@ func _ready() -> void:
 	if not InterpreterSystem.is_connected("execution_stopped", finished):
 		InterpreterSystem.connect("execution_stopped", finished)
 
+func _on_runtime_finished(_runtime_id: String, script_id: String) -> void:
+	if script_id == str(InterpreterSystem.get_active_script().get("id", "")):
+		_on_execution_finished()
+
 func setup(new_game_ref: Node) -> void:
+	if not InterpreterSystem.runtime_manager.runtime_finished.is_connected(_on_runtime_finished):
+		InterpreterSystem.runtime_manager.runtime_finished.connect(_on_runtime_finished)
 	game_ref = new_game_ref
 	_resolver_referencias()
 	current_step = int(Saves.get_tutorial_data().get("step", 0))
@@ -75,9 +81,9 @@ func _resolver_referencias() -> void:
 		push_error("TutorialOverlay: node ShopMenu nao encontrado")
 
 	if script_menu != null:
-		console_editor = script_menu.get_node_or_null("ColorRect3/MarginContainer/VBoxContainer/ConsoleFrame/Window")
+		console_editor = script_menu.get_console_editor()
 		if console_editor == null:
-			push_error("TutorialOverlay: editor em ScriptMenu/ColorRect3/MarginContainer/VBoxContainer/ConsoleFrame/Window nao encontrado")
+			push_error("TutorialOverlay: editor da IDE nao encontrado")
 		script_menu_toggle_button = script_menu.get_node_or_null("ColorRect2/Button")
 		if script_menu_toggle_button != null and not script_menu_toggle_button.toggled.is_connected(_on_script_menu_toggled):
 			script_menu_toggle_button.toggled.connect(_on_script_menu_toggled)
