@@ -1,10 +1,13 @@
 extends Control
+const Workspace = preload("res://systems/ScriptWorkspace.gd")
+
 var context
 @onready var code_edit: CodeEdit = $Panel/VBoxContainer/EditorFrame/CodeEdit
 @onready var status_label: Label = $Panel/VBoxContainer/Header/StatusLabel
 @onready var run_button: Button = $Panel/VBoxContainer/Header/Run
 @onready var stop_button: Button = $Panel/VBoxContainer/Header/Stop
 @onready var stop_all_button: Button = $Panel/VBoxContainer/Header/StopAll
+@onready var language_button: OptionButton = $Panel/VBoxContainer/Header/Language
 @onready var new_tab_button: Button = $Panel/VBoxContainer/TabsRow/NewTab
 @onready var tab_bar: TabBar = $Panel/VBoxContainer/TabsRow/TabBar
 @onready var rename_tab_button: Button = $Panel/VBoxContainer/TabsRow/RenameTab
@@ -21,6 +24,7 @@ func _ready() -> void:
 	EventBus.update_context.connect(context_updt)
 	context = GameManager.current_context
 	_setup_tab_controls()
+	_setup_language_selector()
 	_setup_dialogs()
 	_refresh_tabs()
 	_load_active_script_into_editor()
@@ -35,6 +39,15 @@ func _setup_tab_controls() -> void:
 	rename_tab_button.pressed.connect(_on_rename_tab_pressed)
 	delete_tab_button.pressed.connect(_on_delete_tab_pressed)
 	tab_bar.tab_changed.connect(_on_tab_changed)
+
+func _setup_language_selector() -> void:
+	language_button.clear()
+	language_button.add_item("C-like", 0)
+	language_button.set_item_metadata(0, Workspace.DEFAULT_LANGUAGE)
+	language_button.add_item("Python", 1)
+	language_button.set_item_metadata(1, Workspace.PYTHON_LIKE_LANGUAGE)
+	language_button.item_selected.connect(_on_language_selected)
+	_refresh_language_selector()
 
 func _setup_dialogs() -> void:
 	_rename_dialog = ConfirmationDialog.new()
@@ -128,6 +141,22 @@ func _on_code_focus_exited() -> void:
 	_save_editor_to_active_script()
 	Saves.solicitar_save("script_editado")
 
+func _on_language_selected(index: int) -> void:
+	var language := str(language_button.get_item_metadata(index))
+	if not InterpreterSystem.set_active_script_language(language):
+		_refresh_language_selector()
+		return
+	Saves.solicitar_save("script_linguagem_alterada")
+
+func _refresh_language_selector() -> void:
+	var active_script := InterpreterSystem.get_active_script()
+	var language := str(active_script.get("language", Workspace.DEFAULT_LANGUAGE))
+	for index in range(language_button.get_item_count()):
+		if str(language_button.get_item_metadata(index)) == language:
+			language_button.select(index)
+			return
+	language_button.select(0)
+
 func set_code_text(text: String) -> void:
 	_is_loading_source = true
 	code_edit.text = text
@@ -147,6 +176,7 @@ func _load_active_script_into_editor() -> void:
 	_is_loading_source = true
 	code_edit.text = InterpreterSystem.get_active_source()
 	_is_loading_source = false
+	_refresh_language_selector()
 
 func _refresh_tabs() -> void:
 	_is_refreshing_tabs = true

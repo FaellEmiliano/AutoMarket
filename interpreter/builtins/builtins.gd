@@ -1,6 +1,5 @@
 extends Node
 class_name Builtins
-const DeliveryValidator = preload("res://systems/DeliveryProgramValidator.gd")
 @onready var interpretador: Interpreter = $"../.."
 var exec
 
@@ -101,15 +100,16 @@ func _declare_profit(args):
 			exec.interpreter.erro_runtime("O lucro na posição %d precisa ser inteiro." % index)
 			return null
 
-	var validation := DeliveryValidator.analyze(exec.program_ast)
-	var recursive_functions: Array = validation.get("recursive_functions", [])
+	var facts = exec.delivery_program_facts
+	var recursive_functions: Array = [] if facts == null \
+		else facts.valid_recursive_functions
 	var runtime_recursion_ok: bool = exec.has_delivery_recursion(recursive_functions)
 	var response := DeliverySystem.submit_declaration(
 		profits["data"].duplicate(),
 		exec.runtime_id,
 		exec.script_id,
 		exec.delivery_report_id,
-		validation,
+		facts,
 		runtime_recursion_ok
 	)
 	if response.get("success", false):

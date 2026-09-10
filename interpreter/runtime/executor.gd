@@ -13,6 +13,7 @@ var builtins = {}
 var runtime_id := ""
 var script_id := ""
 var program_ast = null
+var delivery_program_facts = null
 var delivery_report_id := 0
 var delivery_recursive_functions := {}
 var max_call_depth := DeliveryConfigData.MAX_CALL_DEPTH
@@ -88,6 +89,7 @@ func load_program(program_node, context):
 	call_stack.clear()
 	is_finished = false
 	program_ast = program_node
+	delivery_program_facts = null
 	delivery_report_id = 0
 	delivery_recursive_functions.clear()
 

@@ -13,6 +13,8 @@ enum State {
 }
 
 const Config = preload("res://data/DeliveryConfig.gd")
+const DeliveryValidator = preload("res://systems/DeliveryProgramValidator.gd")
+const ProgramFacts = preload("res://interpreter/analysis/delivery_program_facts.gd")
 
 var state: State = State.LOCKED
 var next_report_id := 1
@@ -110,7 +112,8 @@ func request_deliveries(runtime_id: String, script_id: String) -> Dictionary:
 	}
 
 
-func submit_declaration(values: Array, runtime_id: String, script_id: String, report_id: int, program_validation: Dictionary, runtime_recursion_ok: bool) -> Dictionary:
+func submit_declaration(values: Array, runtime_id: String, script_id: String,
+		report_id: int, program_facts, runtime_recursion_ok: bool) -> Dictionary:
 	var context_error := _validate_runtime_context(runtime_id, script_id)
 	if not context_error.is_empty():
 		return _failure(context_error, true)
@@ -141,6 +144,13 @@ func submit_declaration(values: Array, runtime_id: String, script_id: String, re
 				"category_%d" % index
 			)
 
+	if not program_facts is ProgramFacts:
+		var missing := _failure(
+			"Não consegui acessar os fatos do programa desta execução.", true
+		)
+		missing["code"] = "AUTOMARKET_PROGRAM_FACTS_UNAVAILABLE"
+		return missing
+	var program_validation := DeliveryValidator.validate(program_facts)
 	if not bool(program_validation.get("valid", false)):
 		var errors: Array = program_validation.get("errors", [])
 		var message := "O programa ainda não atende aos requisitos do Delivery."
