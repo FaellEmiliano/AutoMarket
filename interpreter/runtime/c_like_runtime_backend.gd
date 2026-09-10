@@ -1,6 +1,8 @@
 extends "res://interpreter/runtime/language_runtime_backend.gd"
 class_name CLikeRuntimeBackend
 
+const DeliveryAnalyzer = preload("res://interpreter/analysis/c_like_delivery_program_analyzer.gd")
+
 var _interpreter: Interpreter
 
 func _init() -> void:
@@ -20,6 +22,11 @@ func configure_runtime(runtime_id: String, script_id: String, source_name: Strin
 
 func start_source(source: String, context: Variant) -> void:
 	_interpreter.run(source, context)
+	_interpreter.executor.delivery_program_facts = null
+	if not _interpreter.tem_erros() and _interpreter.executor.program_ast != null:
+		_interpreter.executor.delivery_program_facts = DeliveryAnalyzer.analyze(
+			_interpreter.executor.program_ast
+		)
 
 func begin_scheduler_frame() -> void:
 	_interpreter.begin_scheduler_frame()
@@ -32,6 +39,7 @@ func execute_operation_budget(max_operations: int) -> int:
 
 func stop_execution() -> void:
 	_interpreter.stop_execution()
+	_interpreter.executor.delivery_program_facts = null
 
 func consume_sleep_request() -> bool:
 	return _interpreter.consume_sleep_request()
@@ -49,9 +57,11 @@ func _on_output_changed(text: String) -> void:
 	output_changed.emit(text)
 
 func _on_execution_finished() -> void:
+	_interpreter.executor.delivery_program_facts = null
 	execution_finished.emit()
 
 func _on_execution_error(text: String) -> void:
+	_interpreter.executor.delivery_program_facts = null
 	execution_error.emit(text)
 
 func _on_sleep_requested(seconds: float) -> void:

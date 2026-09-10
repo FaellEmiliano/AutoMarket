@@ -26,6 +26,10 @@ func _test_workspace_documents() -> void:
 	assert(workspace.get_script_document(new_id).get("language") == "c_like", "Nova aba deve iniciar como C-like.")
 	workspace.set_active_script(new_id)
 	assert(workspace.get_active_source().contains("int main"), "Nova aba deve iniciar com codigo base.")
+	assert(workspace.set_active_language("python_like"), "Deve permitir selecionar Python-like na aba ativa.")
+	assert(workspace.get_active_script().get("language") == "python_like", "A troca de linguagem deve afetar somente a aba ativa.")
+	assert(not workspace.set_active_language("desconhecida"), "Nao deve aceitar uma linguagem sem backend.")
+	workspace.set_active_language("c_like")
 
 	workspace.update_active_source("codigo novo")
 	workspace.set_active_script(principal_id)

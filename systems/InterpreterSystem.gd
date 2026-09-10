@@ -124,6 +124,9 @@ func set_active_script(id: String) -> void:
 func update_active_source(source: String) -> void:
 	set_script_text(source)
 
+func set_active_script_language(language: String) -> bool:
+	return script_workspace.set_active_language(language)
+
 func get_active_source() -> String:
 	return get_script_text()
 

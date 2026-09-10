@@ -25,6 +25,10 @@ func _ready() -> void:
 	await _test_structural_validation()
 	await _test_runtime_recursion_required()
 	await _test_valid_recursive_solution()
+	await _test_python_valid_recursive_solution()
+	await _test_python_non_recursive_solution()
+	await _test_python_declared_recursion_must_execute()
+	await _test_python_facts_are_runtime_local()
 	await _test_valid_while_solution()
 	await _test_duplicate_and_cooldown_authority()
 	await _test_diamond_cap()
@@ -241,6 +245,87 @@ func _test_valid_recursive_solution() -> void:
 	_check(DeliverySystem.last_rewarded_report_id > 0, "A aprovação deve registrar o id anti-duplicação.")
 
 
+func _test_python_valid_recursive_solution() -> void:
+	_reset_report([3, 2, 1])
+	var runtime := await _run_python_delivery(_valid_python_solution())
+	_check(str(runtime.get("status", "")) == ScriptRuntimeManager.STATUS_FINISHED,
+		"Solução Python-like válida deve terminar normalmente.")
+	_check(_runtime_text(runtime).contains("Declaração aprovada"),
+		"Solução Python-like recursiva válida deve ser aprovada.")
+	_check(GameManager.money == 33 and GameManager.diamonds == 1,
+		"Solução Python-like deve receber as mesmas recompensas da C-like.")
+	_check(_money_events == 1 and DeliverySystem.state == DeliverySystem.State.COOLDOWN,
+		"Aprovação Python-like deve aplicar uma única recompensa e iniciar cooldown.")
+
+
+func _test_python_non_recursive_solution() -> void:
+	_reset_report([2, 1, 1])
+	var runtime := await _run_python_delivery(_non_recursive_python_solution())
+	_check(str(runtime.get("status", "")) == ScriptRuntimeManager.STATUS_FINISHED,
+		"Rejeição pedagógica Python-like não deve ser erro do runtime.")
+	_check(_runtime_text(runtime).contains("chamar a si mesma"),
+		"Cálculo Python-like correto sem recursão deve ser rejeitado como no C-like.")
+	_check(GameManager.money == 0 and GameManager.diamonds == 0,
+		"Solução Python-like sem recursão não pode receber recompensa.")
+
+
+func _test_python_declared_recursion_must_execute() -> void:
+	_reset_report([2, 1, 1])
+	var runtime := await _run_python_delivery("""
+def recursiva(n):
+    if n == 0:
+        return 0
+    return recursiva(n - 1)
+
+def calcular(quantidade, valor_base):
+    lucro = 0
+    for passo in range(quantidade):
+        lucro = 2 * lucro + valor_base
+    return lucro
+
+entregas = get_deliveries()
+bases = [2, 4, 7]
+lucros = [0, 0, 0]
+for i in range(3):
+    lucros[i] = calcular(entregas[i], bases[i])
+declare_profit(lucros)
+""")
+	_check(_runtime_text(runtime).contains("não foi usada"),
+		"Declarar recursão Python-like sem executá-la após o relatório deve ser rejeitado.")
+	_check(GameManager.money == 0 and GameManager.diamonds == 0,
+		"Recursão Python-like não executada não pode conceder recompensa.")
+
+
+func _test_python_facts_are_runtime_local() -> void:
+	_reset_report([2, 1, 1])
+	var other_id := "python_delivery_facts_other"
+	InterpreterSystem.runtime_manager.start_script(other_id, """
+def recursiva(n):
+    if n == 0:
+        return 0
+    return recursiva(n - 1)
+
+while True:
+    wait(1)
+""", "OutroPython", null, "python_like")
+	await _wait_frames(2)
+	_check(InterpreterSystem.runtime_manager.is_script_running(other_id),
+		"Runtime Python-like paralelo deve permanecer suspenso durante o teste.")
+	var runtime := await _run_python_delivery(_non_recursive_python_solution())
+	_check(_runtime_text(runtime).contains("chamar a si mesma"),
+		"Delivery não pode herdar fatos recursivos de outro runtime Python-like.")
+	_check(GameManager.money == 0 and GameManager.diamonds == 0,
+		"Fatos de outro runtime não podem liberar recompensa.")
+	InterpreterSystem.runtime_manager.stop_script(other_id)
+
+	_reset_report([2, 1, 1])
+	var invalid := await _run_python_delivery("def quebrada(:\n    return 1\n")
+	_check(str(invalid.get("status", "")) == ScriptRuntimeManager.STATUS_ERROR,
+		"Source Python-like inválido deve falhar sem produzir fatos válidos.")
+	_check(GameManager.money == 0 and GameManager.diamonds == 0,
+		"Falha de parse após restart não pode reutilizar fatos nem conceder recompensa.")
+
+
 func _test_valid_while_solution() -> void:
 	_reset_report([1, 0, 2])
 	var runtime := await _run_delivery("""
@@ -356,6 +441,39 @@ int main() {
 """ % extra_line
 
 
+func _valid_python_solution() -> String:
+	return """
+def resolver(quantidade, valor_base):
+    if quantidade == 0:
+        return 0
+    return 2 * resolver(quantidade - 1, valor_base) + valor_base
+
+entregas = get_deliveries()
+bases = [2, 4, 7]
+lucros = [0, 0, 0]
+for i in range(3):
+    lucros[i] = resolver(entregas[i], bases[i])
+declare_profit(lucros)
+"""
+
+
+func _non_recursive_python_solution() -> String:
+	return """
+def calcular(quantidade, valor_base):
+    lucro = 0
+    for passo in range(quantidade):
+        lucro = 2 * lucro + valor_base
+    return lucro
+
+entregas = get_deliveries()
+bases = [2, 4, 7]
+lucros = [0, 0, 0]
+for i in range(3):
+    lucros[i] = calcular(entregas[i], bases[i])
+declare_profit(lucros)
+"""
+
+
 func _run_delivery(code: String) -> Dictionary:
 	var runtime_id := InterpreterSystem.runtime_manager.start_script(_delivery_script_id, code, "Delivery")
 	var guard := 0
@@ -364,6 +482,20 @@ func _run_delivery(code: String) -> Dictionary:
 		await get_tree().process_frame
 	if InterpreterSystem.runtime_manager.is_script_running(_delivery_script_id):
 		_check(false, "Execução do Delivery excedeu o limite de frames.")
+		InterpreterSystem.runtime_manager.stop_script(_delivery_script_id)
+	return InterpreterSystem.runtime_manager.get_runtime(runtime_id)
+
+
+func _run_python_delivery(code: String) -> Dictionary:
+	var runtime_id := InterpreterSystem.runtime_manager.start_script(
+		_delivery_script_id, code, "Delivery", null, "python_like"
+	)
+	var guard := 0
+	while InterpreterSystem.runtime_manager.is_script_running(_delivery_script_id) and guard < 180:
+		guard += 1
+		await get_tree().process_frame
+	if InterpreterSystem.runtime_manager.is_script_running(_delivery_script_id):
+		_check(false, "Execução Python-like do Delivery excedeu o limite de frames.")
 		InterpreterSystem.runtime_manager.stop_script(_delivery_script_id)
 	return InterpreterSystem.runtime_manager.get_runtime(runtime_id)
 

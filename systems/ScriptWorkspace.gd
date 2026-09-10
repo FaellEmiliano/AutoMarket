@@ -2,6 +2,8 @@ extends RefCounted
 
 const WORKSPACE_VERSION := 4
 const DEFAULT_LANGUAGE := "c_like"
+const PYTHON_LIKE_LANGUAGE := "python_like"
+const SUPPORTED_LANGUAGES := [DEFAULT_LANGUAGE, PYTHON_LIKE_LANGUAGE]
 const DEFAULT_SOURCE := "int main(){\n\n}\n"
 const DEFAULT_TITLE := "Principal"
 const DELIVERY_TITLE := "Delivery"
@@ -120,6 +122,18 @@ func update_active_source(source: String) -> void:
 		return
 	script["source"] = source
 	script["updated_at"] = Time.get_unix_time_from_system()
+
+func set_active_language(language: String) -> bool:
+	if not SUPPORTED_LANGUAGES.has(language):
+		return false
+	var script := get_active_script()
+	if script.is_empty():
+		return false
+	if str(script.get("language", DEFAULT_LANGUAGE)) == language:
+		return true
+	script["language"] = language
+	script["updated_at"] = Time.get_unix_time_from_system()
+	return true
 
 func get_active_source() -> String:
 	var script := get_active_script()

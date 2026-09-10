@@ -52,6 +52,13 @@ text = "PARADO"
 horizontal_alignment = 1
 vertical_alignment = 1
 
+[node name="Language" type="OptionButton" parent="Panel/VBoxContainer/Header" unique_id=220000008]
+custom_minimum_size = Vector2(74, 24)
+layout_mode = 2
+focus_mode = 0
+theme_override_font_sizes/font_size = 8
+tooltip_text = "Linguagem deste script"
+
 [node name="Run" type="Button" parent="Panel/VBoxContainer/Header" unique_id=214764895]
 custom_minimum_size = Vector2(48, 24)
 layout_mode = 2
