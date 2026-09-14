@@ -1,6 +1,7 @@
 extends Node
 
 const MenuScene = preload("res://scenes/game/script_menu.tscn")
+const ThemeFactory = preload("res://scenes/console/components/ide_theme.gd")
 var menu
 var ide
 var failures: Array[String] = []
@@ -13,6 +14,8 @@ func _ready() -> void:
 	add_child(menu)
 	await get_tree().process_frame
 	ide = menu.get_console_editor()
+	_check(ide.theme.default_font == ThemeFactory.UI, "IDE usa a fonte empacotada em vez de fallback do sistema")
+	_check(ide.theme.get_font("font", "CodeEdit") == ThemeFactory.MONO, "Editor de codigo usa a fonte monoespacada empacotada")
 	menu.set_aberto(true)
 	_check(menu.is_aberto() and ide.is_visible_in_tree(), "IDE abre")
 	_check(not ide.output.visible, "Saída inicia recolhida")

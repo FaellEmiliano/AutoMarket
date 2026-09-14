@@ -1,5 +1,6 @@
 extends RefCounted
 
+const UI = preload("res://assets/fonts/PublicPixel-rv0pA.ttf")
 const MONO = preload("res://assets/fonts/JetBrainsMono-VariableFont_wght.ttf")
 const INK := Color("e7edf0")
 const MUTED := Color("93a3ac")
@@ -22,13 +23,11 @@ static func box(color: Color, padding: int = 8, border: Color = Color.TRANSPAREN
 
 static func create() -> Theme:
 	var theme := Theme.new()
-	# A local theme keeps the game's pixel typography out of long-form reading.
-	var ui_font := SystemFont.new()
-	ui_font.font_names = PackedStringArray(["Segoe UI", "Arial", "sans-serif"])
-	theme.default_font = ui_font
+	# Keep the editor self-contained: system fonts are not available on every export target.
+	theme.default_font = UI
 	theme.default_font_size = 15
 	for type in ["Label", "Button", "OptionButton", "LineEdit", "Tree", "TabBar", "PopupMenu"]:
-		theme.set_font("font", type, ui_font)
+		theme.set_font("font", type, UI)
 		theme.set_font_size("font_size", type, 15)
 		theme.set_constant("outline_size", type, 0)
 		theme.set_color("font_color", type, INK)
@@ -106,10 +105,8 @@ static func create() -> Theme:
 	theme.set_constant("completion_lines", "CodeEdit", 8)
 	theme.set_constant("completion_max_width", "CodeEdit", 36)
 	theme.set_constant("completion_scroll_width", "CodeEdit", 8)
-	theme.set_font("normal_font", "RichTextLabel", ui_font)
-	var bold_font := ui_font.duplicate()
-	bold_font.font_weight = 700
-	theme.set_font("bold_font", "RichTextLabel", bold_font)
+	theme.set_font("normal_font", "RichTextLabel", UI)
+	theme.set_font("bold_font", "RichTextLabel", UI)
 	theme.set_font_size("normal_font_size", "RichTextLabel", 16)
 	theme.set_font_size("bold_font_size", "RichTextLabel", 16)
 	theme.set_font_size("mono_font_size", "RichTextLabel", 16)
