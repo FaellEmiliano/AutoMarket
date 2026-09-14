@@ -272,6 +272,27 @@ Use a versão das skills correspondente à versão instalada do Orca.
 
 Não replique manualmente um fluxo que a skill do Orca já define corretamente.
 
+
+
+## IDs obrigatórios de modelos Codex 
+
+Ao criar workers Codex via Orca, use somente estes IDs: 
+        - Luna: `gpt-5.6-luna` 
+        - Terra: `gpt-5.6-terra` 
+        - Sol: `gpt-5.6-sol`
+ Nunca use aliases antigos ou genéricos como: 
+        - `gpt-5` 
+        - `gpt-5-mini` 
+        - `gpt-5-nano` 
+        - `gpt-5.4` 
+        - `gpt-5.4-mini` 
+quando o Codex estiver autenticado por uma conta ChatGPT. Ao chamar `orca orchestration worker-start`, sempre passe explicitamente `--model` e `--effort`. Exemplos: 
+        Luna low: `--agent codex --model gpt-5.6-luna --effort low` 
+        Luna medium: `--agent codex --model gpt-5.6-luna --effort medium` 
+        Terra medium: `--agent codex --model gpt-5.6-terra --effort medium` 
+        Terra high: `--agent codex --model gpt-5.6-terra --effort high` 
+        Sol high: `--agent codex --model gpt-5.6-sol --effort high`
+
 ---
 
 ## Papel do maestro
@@ -911,3 +932,4 @@ Use esta sequência como padrão mental, não como ritual obrigatório:
 Princípio final:
 
 > Use o mínimo de agentes, contexto, reasoning e capacidade de modelo necessários para produzir uma solução correta, verificável e integrada.
+
