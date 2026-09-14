@@ -22,6 +22,7 @@ var _finished := true
 var _sleep_requested := false
 var _sleeping := false
 var _sleep_token: int = 0
+var _diagnostics: Array = []
 
 
 func _init() -> void:
@@ -45,6 +46,7 @@ func start_source(source: String, _context: Variant) -> void:
 	_sleep_requested = false
 	_sleeping = false
 	_sleep_token = 0
+	_diagnostics.clear()
 	_bridge.configure_program_facts(null, Callable())
 
 	var lexer = PythonLexer.new(source)
@@ -161,6 +163,7 @@ func _drain_new_output() -> void:
 
 func _fail_with_diagnostics(diagnostics: Array) -> void:
 	for diagnostic in diagnostics:
+		_diagnostics.append(_diagnostic_dictionary(diagnostic))
 		_output_lines.append(_format_diagnostic(
 			str(diagnostic.code), str(diagnostic.message),
 			int(diagnostic.line), int(diagnostic.column)
@@ -170,6 +173,7 @@ func _fail_with_diagnostics(diagnostics: Array) -> void:
 
 func _fail_with_runtime_failure(failure) -> void:
 	_drain_new_output()
+	_diagnostics.append(_diagnostic_dictionary(failure))
 	_output_lines.append(_format_diagnostic(
 		str(failure.code), str(failure.message),
 		int(failure.line), int(failure.column)
@@ -178,6 +182,15 @@ func _fail_with_runtime_failure(failure) -> void:
 
 
 func _fail_with_text(code: String, message: String, line: int, column: int) -> void:
+	_diagnostics.append({
+		"category": "internal",
+		"code": code,
+		"message": message,
+		"line": line,
+		"column": column,
+		"length": 0,
+		"details": {},
+	})
 	_output_lines.append(_format_diagnostic(code, message, line, column))
 	_finish_error()
 
@@ -195,7 +208,21 @@ func _finish_error() -> void:
 	_bridge.configure_program_facts(null, Callable())
 	var text := _output_text()
 	output_changed.emit(text)
+	execution_diagnostics.emit(_diagnostics.duplicate(true))
 	execution_error.emit(text)
+
+func _diagnostic_dictionary(diagnostic) -> Dictionary:
+	if diagnostic != null and diagnostic.has_method("to_dictionary"):
+		return diagnostic.to_dictionary()
+	return {
+		"category": "internal",
+		"code": "UNKNOWN_DIAGNOSTIC",
+		"message": str(diagnostic),
+		"line": 0,
+		"column": 0,
+		"length": 0,
+		"details": {},
+	}
 
 
 func _format_diagnostic(code: String, message: String, line: int, column: int) -> String:

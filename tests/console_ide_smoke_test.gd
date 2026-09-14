@@ -15,6 +15,7 @@ func _ready() -> void:
 	ide = menu.get_console_editor()
 	menu.set_aberto(true)
 	_check(menu.is_aberto() and ide.is_visible_in_tree(), "IDE abre")
+	_check(not ide.output.visible, "Saída inicia recolhida")
 	var first := str(InterpreterSystem.get_active_script().id)
 	_check(ide.get_code_text().contains("42"), "Source inicial")
 	ide.set_code_text("int main(){ print(7); }")
@@ -32,7 +33,14 @@ func _ready() -> void:
 	_check(ide.explorer.script_items.has(duplicate), "Duplicar atualiza Explorer")
 	InterpreterSystem.delete_script(duplicate)
 	_check(not ide.explorer.script_items.has(duplicate), "Excluir atualiza Explorer")
-	_check(ide.tabs.tab_close_display_policy == TabBar.CLOSE_BUTTON_SHOW_NEVER, "Scripts sem fechamento ambíguo")
+	var script_count := InterpreterSystem.get_scripts().size()
+	var second_tab := _find_tab("script", second)
+	ide.tabs.close_tab(second_tab)
+	_check(not ide.tabs.open_script_ids.has(second), "Fechar aba remove somente a apresentação")
+	_check(InterpreterSystem.get_scripts().size() == script_count, "Fechar aba não exclui script")
+	ide.open_document("script", second)
+	_check(ide.tabs.open_script_ids.has(second) and ide.get_code_text().contains("9"), "Explorer reabre aba preservada")
+	ide.open_document("script", first)
 	ide.open_document("help", "input")
 	_check(ide.tabs.active_kind == "help" and ide.documentation.body.text.contains("input"), "Documentação liberada abre")
 	_check(str(InterpreterSystem.get_active_script().id) == first, "Docs preservam ativo")
@@ -69,6 +77,20 @@ func _ready() -> void:
 	ide.open_document("script", first)
 	ide._on_stop_pressed()
 	_check(not ide.language_button.disabled, "Language reabilita")
+	ide.open_document("script", second)
+	ide._on_language_selected(1)
+	ide.set_code_text("print(nome_inexistente)\n")
+	ide._on_run_pressed()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var error_runtime := InterpreterSystem.get_runtime_by_script_id(second)
+	_check(str(error_runtime.get("status", "")) == "error", "Erro Python-like chega à IDE")
+	_check(not error_runtime.get("diagnostics", []).is_empty(), "IDE recebe diagnóstico estruturado")
+	_check(ide.code_edit.diagnostic_lines().has(0), "Linha do erro recebe destaque")
+	_check(ide.output.visible, "Erro abre painel de saída")
+	ide.set_code_text("print(42)\n")
+	_check(ide.code_edit.diagnostic_lines().is_empty(), "Editar limpa destaque obsoleto")
+	ide.open_document("script", first)
 	EventBus.send_debug.emit("saída de teste")
 	_check(ide.output.text_label.text == "saída de teste", "Output recebe sinal")
 	ide.find_bar.open()
@@ -106,9 +128,10 @@ func _ready() -> void:
 		if dimensions.x == 640:
 			_check(ide.layout_mode_id == ide.LayoutMode.COMPACT, "Modo compacto")
 			ide.toggle_explorer()
-			_check(ide.sidebar.visible, "Explorer compacto acessível")
+			_check(ide.sidebar.visible and ide.drawer_scrim.visible, "Gaveta compacta e fundo acessíveis")
+			_check(ide.workspace.visible, "Editor permanece atrás da gaveta")
 			ide.open_document("script", first)
-			_check(ide.workspace.visible, "Compacto volta ao código")
+			_check(not ide.sidebar.visible and not ide.drawer_scrim.visible, "Selecionar fecha gaveta")
 			ide.toggle_output()
 			_check(ide.output.visible and not ide.documents.visible, "Saída acessível em janela baixa")
 			ide.toggle_output()
@@ -122,6 +145,13 @@ func _ready() -> void:
 	InterpreterSystem.stop_all()
 	await get_tree().create_timer(5).timeout
 	get_tree().quit(0 if failures.is_empty() else 1)
+
+func _find_tab(kind: String, id: String) -> int:
+	for index in range(ide.tabs.get_tab_count()):
+		var data: Dictionary = ide.tabs.get_tab_metadata(index)
+		if data.kind == kind and data.id == id:
+			return index
+	return -1
 
 func _check(condition: bool, message: String) -> void:
 	if not condition:

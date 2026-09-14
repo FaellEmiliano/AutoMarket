@@ -117,7 +117,8 @@ func string():
 		avancar()
 
 	if char_atual == "":
-		interpreter.registrar_erro("String não fechada",linha,coluna)
+		interpreter.registrar_erro("String não fechada", linha, coluna,
+			ErroInterpretador.TipoErro.LEXICO, "C_LEX_UNTERMINATED_STRING", 1)
 		return Token.new(Token.TiposToken.STRING, resultado,linha,coluna)
 
 	avancar()
@@ -159,7 +160,8 @@ func comentario_multilinha():
 
 		avancar()
 	
-	interpreter.registrar_erro("Comentário multilinha não fechado",linha,coluna)
+	interpreter.registrar_erro("Comentário multilinha não fechado", linha, coluna,
+		ErroInterpretador.TipoErro.LEXICO, "C_LEX_UNTERMINATED_COMMENT", 2)
 
 func is_letter(c: String) -> bool:
 	return c.is_valid_ascii_identifier() and not c.is_valid_int()
@@ -229,7 +231,8 @@ func get_next_token():
 			avancar()
 			return Token.new(tipo, c,linha,coluna)
 		
-		interpreter.registrar_erro("Caractere inválido: " + char_atual,linha,coluna)
+		interpreter.registrar_erro("Caractere inválido: " + char_atual, linha, coluna,
+			ErroInterpretador.TipoErro.LEXICO, "C_LEX_INVALID_CHARACTER", 1)
 		avancar()
 	return Token.new(Token.TiposToken.EOF, "",linha,coluna)
 

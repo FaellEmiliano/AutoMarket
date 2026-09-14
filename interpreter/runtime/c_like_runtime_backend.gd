@@ -12,6 +12,7 @@ func _init() -> void:
 	_interpreter.output_changed.connect(_on_output_changed)
 	_interpreter.execution_finished.connect(_on_execution_finished)
 	_interpreter.execution_error.connect(_on_execution_error)
+	_interpreter.execution_diagnostics.connect(_on_execution_diagnostics)
 	_interpreter.sleep_requested.connect(_on_sleep_requested)
 	add_child(_interpreter)
 
@@ -63,6 +64,9 @@ func _on_execution_finished() -> void:
 func _on_execution_error(text: String) -> void:
 	_interpreter.executor.delivery_program_facts = null
 	execution_error.emit(text)
+
+func _on_execution_diagnostics(diagnostics: Array) -> void:
+	execution_diagnostics.emit(diagnostics)
 
 func _on_sleep_requested(seconds: float) -> void:
 	sleep_requested.emit(seconds)

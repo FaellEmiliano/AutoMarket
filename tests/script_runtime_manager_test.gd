@@ -26,6 +26,7 @@ func _ready() -> void:
 
 	_test_language_backend_factory()
 	await _test_language_routing(manager)
+	await _test_structured_diagnostics(manager)
 	_test_python_like_per_script_budget(manager)
 	_test_python_like_global_budget(manager)
 	await _test_python_like_lifecycle_and_isolation(manager)
@@ -111,6 +112,33 @@ func _test_language_routing(manager) -> void:
 	var active_runtime: Dictionary = InterpreterSystem.runtime_manager.get_runtime(active_runtime_id)
 	_check(str(active_runtime.get("language", "")) == "python_like", "Runtime iniciado pelo documento deve manter a linguagem explícita.")
 	_check(str(active_runtime.get("status", "")) == ScriptRuntimeManager.STATUS_FINISHED, "Documento Python-like ativo deve concluir normalmente.")
+
+
+func _test_structured_diagnostics(manager) -> void:
+	var runtime_id: String = manager.start_script(
+		"python_diagnostic", "print(nome_inexistente)\n", "PythonDiagnostic", null, "python_like"
+	)
+	await _wait_until_not_running(manager, "python_diagnostic")
+	var runtime: Dictionary = manager.get_runtime(runtime_id)
+	var diagnostics: Array = runtime.get("diagnostics", [])
+	_check(not diagnostics.is_empty(), "Erro Python-like deve chegar como diagnóstico estruturado.")
+	if not diagnostics.is_empty():
+		var diagnostic: Dictionary = diagnostics[0]
+		_check(int(diagnostic.get("line", 0)) == 1, "Diagnóstico Python-like deve preservar a linha.")
+		_check(str(diagnostic.get("script_id", "")) == "python_diagnostic", "Manager deve associar diagnóstico ao script.")
+
+	runtime_id = manager.start_script(
+		"c_diagnostic", "int main(){ @ }", "CDiagnostic", null, "c_like"
+	)
+	await _wait_until_not_running(manager, "c_diagnostic")
+	runtime = manager.get_runtime(runtime_id)
+	diagnostics = runtime.get("diagnostics", [])
+	_check(not diagnostics.is_empty(), "Erro C-like deve chegar como diagnóstico estruturado.")
+	if not diagnostics.is_empty():
+		var diagnostic: Dictionary = diagnostics[0]
+		_check(str(diagnostic.get("category", "")) == "lexical", "Erro léxico C-like deve manter categoria.")
+		_check(str(diagnostic.get("code", "")) == "C_LEX_INVALID_CHARACTER", "Erro léxico C-like deve manter código estável.")
+		_check(int(diagnostic.get("line", 0)) > 0, "Erro léxico C-like deve preservar linha válida.")
 
 
 func _test_python_like_per_script_budget(manager) -> void:

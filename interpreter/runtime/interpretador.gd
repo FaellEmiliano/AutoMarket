@@ -4,6 +4,7 @@ class_name Interpreter
 signal execution_started
 signal execution_finished
 signal execution_error(text)
+signal execution_diagnostics(diagnostics)
 signal output_changed(text)
 signal sleep_requested(seconds)
  
@@ -31,8 +32,9 @@ var _sleep_requested := false
  
 ## Erros de parse/lexer: acumula e continua (para reportar múltiplos erros)
 func registrar_erro(msg: String, linha: int = -1, coluna: int = -1,
-		tipo: ErroInterpretador.TipoErro = ErroInterpretador.TipoErro.RUNTIME) -> void:
-	var e = ErroInterpretador.new(msg, linha, coluna, tipo)
+		tipo: ErroInterpretador.TipoErro = ErroInterpretador.TipoErro.RUNTIME,
+		codigo: String = "", comprimento: int = 0) -> void:
+	var e = ErroInterpretador.new(msg, linha, coluna, tipo, codigo, comprimento)
 	erros.append(e)
 	print("[Interpreter] ", e.formatar())
  
@@ -64,6 +66,13 @@ func _formatar_erros() -> String:
 		var texto: String = e.formatar()
 		linhas.append(texto)
 	return _format_output_text("\n".join(linhas))
+
+func get_diagnostics() -> Array:
+	var diagnostics := []
+	for error in erros:
+		if error != null and error.has_method("to_dictionary"):
+			diagnostics.append(error.to_dictionary())
+	return diagnostics
 
 func emitir_saida(texto: String) -> void:
 	if max_prints_per_frame > 0 and _prints_this_frame >= max_prints_per_frame:
@@ -233,6 +242,7 @@ func _emitir_erros() -> void:
 	if not saidas.is_empty():
 		texto = _format_output_text("\n".join(saidas)) + "\n" + texto
 	print("[Interpreter] Erros:\n", texto)
+	emit_signal("execution_diagnostics", get_diagnostics())
 	emit_signal("execution_error", texto)
 	_emit_debug_text(texto)
  

@@ -8,8 +8,10 @@ const HORIZONTAL_SAFE_MARGIN := 32.0
 
 @onready var name_plate: PanelContainer = $TopCenter/NamePlate
 @onready var student_name_label: Label = $TopCenter/NamePlate/Margin/StudentName
+@onready var top_center: CenterContainer = $TopCenter
 
 var _student_name := ""
+var _editor_mode := false
 
 
 func _ready() -> void:
@@ -38,9 +40,27 @@ func clear_student() -> void:
 func get_student_name() -> String:
 	return _student_name
 
+func set_editor_mode(enabled: bool) -> void:
+	_editor_mode = enabled
+	if get_viewport() != null:
+		_fit_label_to_viewport()
+
 
 func _fit_label_to_viewport() -> void:
-	if not visible or student_name_label == null:
+	if student_name_label == null:
+		return
+	if _editor_mode:
+		var stretch := get_viewport().get_stretch_transform().get_scale()
+		top_center.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		top_center.scale = Vector2.ONE / stretch
+		top_center.position = Vector2(0, 10)
+		top_center.size = Vector2(get_viewport().get_visible_rect().size.x * stretch.x, 42)
+	else:
+		top_center.scale = Vector2.ONE
+		top_center.set_anchors_preset(Control.PRESET_TOP_WIDE)
+		top_center.offset_top = 10
+		top_center.offset_bottom = 52
+	if not visible:
 		return
 
 	var available_width := maxf(160.0, get_viewport().get_visible_rect().size.x - HORIZONTAL_SAFE_MARGIN)

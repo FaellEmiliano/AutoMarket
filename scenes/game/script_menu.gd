@@ -20,6 +20,8 @@ func set_aberto(value: bool) -> void:
 		console.persist_source()
 	aberto = value
 	console.visible = value
+	if StudentIdentity.has_method("set_editor_mode"):
+		StudentIdentity.set_editor_mode(value)
 	_fit_workspace()
 	toggle_button.set_pressed_no_signal(value)
 	$ColorRect2.visible = not value
@@ -47,6 +49,8 @@ func _sync_layer() -> void:
 func _fit_workspace() -> void:
 	# Compensate canvas_items stretch locally so the IDE stays legible on small windows.
 	var stretch := get_viewport().get_stretch_transform().get_scale()
+	console.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	console.position = Vector2.ZERO
 	console.scale = Vector2.ONE / stretch
 	console.size = get_viewport().get_visible_rect().size * stretch
 	console.update_layout(console.size.x)

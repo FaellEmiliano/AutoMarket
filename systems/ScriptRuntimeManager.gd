@@ -7,6 +7,7 @@ signal runtime_started(runtime_id, script_id)
 signal runtime_stopped(runtime_id, script_id)
 signal runtime_finished(runtime_id, script_id)
 signal runtime_error(runtime_id, script_id, message)
+signal runtime_diagnostics(runtime_id, script_id, diagnostics)
 signal runtimes_changed
 
 const STATUS_RUNNING := "running"
@@ -60,6 +61,7 @@ func start_script(script_id: String, source: String, script_name: String, contex
 		"backend": backend,
 		"output": "",
 		"error": "",
+		"diagnostics": [],
 		"cancel_requested": false,
 		"wake_time_msec": 0,
 		"operations_total": 0,
@@ -75,6 +77,7 @@ func start_script(script_id: String, source: String, script_name: String, contex
 	backend.output_changed.connect(_on_runtime_output_changed.bind(runtime_id))
 	backend.execution_finished.connect(_on_runtime_execution_finished.bind(runtime_id))
 	backend.execution_error.connect(_on_runtime_execution_error.bind(runtime_id))
+	backend.execution_diagnostics.connect(_on_runtime_execution_diagnostics.bind(runtime_id))
 
 	emit_signal("runtime_started", runtime_id, script_id)
 	emit_signal("runtimes_changed")
@@ -284,6 +287,22 @@ func _on_runtime_output_changed(text: String, runtime_id: String) -> void:
 func _on_runtime_execution_error(text: String, runtime_id: String) -> void:
 	_mark_runtime_error(runtime_id, text)
 
+func _on_runtime_execution_diagnostics(diagnostics: Array, runtime_id: String) -> void:
+	var runtime := get_runtime(runtime_id)
+	if runtime.is_empty():
+		return
+	var normalized := []
+	for raw in diagnostics:
+		if not raw is Dictionary:
+			continue
+		var item: Dictionary = raw.duplicate(true)
+		item["runtime_id"] = runtime_id
+		item["script_id"] = str(runtime.get("script_id", ""))
+		item["source_name"] = str(runtime.get("script_name", ""))
+		normalized.append(item)
+	runtime["diagnostics"] = normalized
+	runtime_diagnostics.emit(runtime_id, str(runtime.get("script_id", "")), normalized.duplicate(true))
+
 
 func _on_runtime_execution_finished(runtime_id: String) -> void:
 	var runtime := get_runtime(runtime_id)
@@ -372,6 +391,7 @@ func _runtime_view(runtime: Dictionary) -> Dictionary:
 		"status": str(runtime.get("status", STATUS_STOPPED)),
 		"output": str(runtime.get("output", "")),
 		"error": str(runtime.get("error", "")),
+		"diagnostics": runtime.get("diagnostics", []).duplicate(true),
 		"wake_time_msec": runtime.get("wake_time_msec", 0),
 		"operations_total": runtime.get("operations_total", 0),
 		"operations_last_frame": runtime.get("operations_last_frame", 0),

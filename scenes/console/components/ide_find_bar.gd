@@ -6,6 +6,12 @@ var result: Label
 var _matches: Array[Vector2i] = []
 var _index := -1
 var _query := ""
+var previous_button: Button
+var next_button: Button
+var close_button: Button
+const ICON_PREVIOUS = preload("res://assets/icons/ide_previous.svg")
+const ICON_NEXT = preload("res://assets/icons/ide_next.svg")
+const ICON_CLOSE = preload("res://assets/icons/ide_close.svg")
 
 func _ready() -> void:
 	query = LineEdit.new()
@@ -17,11 +23,18 @@ func _ready() -> void:
 	result = Label.new()
 	result.theme_type_variation = &"IDESectionLabel"
 	add_child(result)
-	for entry in [["Anterior", func(): find_next(true)], ["Próxima", find_next], ["Fechar", close]]:
+	var buttons := []
+	for entry in [["Anterior", ICON_PREVIOUS, func(): find_next(true)], ["Próxima", ICON_NEXT, find_next], ["Fechar", ICON_CLOSE, close]]:
 		var button := Button.new()
 		button.text = entry[0]
-		button.pressed.connect(entry[1])
+		button.icon = entry[1]
+		button.tooltip_text = entry[0] + " resultado" if entry[0] != "Fechar" else "Fechar busca"
+		button.pressed.connect(entry[2])
 		add_child(button)
+		buttons.append(button)
+	previous_button = buttons[0]
+	next_button = buttons[1]
+	close_button = buttons[2]
 	hide()
 
 func open() -> void:
@@ -72,3 +85,9 @@ func find_next(backwards := false) -> void:
 	editor.select(hit.y, hit.x, hit.y, hit.x + query.text.length())
 	editor.center_viewport_to_caret()
 	result.text = "%d / %d" % [_index + 1, _matches.size()]
+
+func update_layout(compact: bool) -> void:
+	for button in [previous_button, next_button, close_button]:
+		button.text = "" if compact else button.tooltip_text.trim_suffix(" resultado").trim_suffix(" busca")
+		button.custom_minimum_size = Vector2(40, 40)
+	result.visible = not compact

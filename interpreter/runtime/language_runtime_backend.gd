@@ -4,6 +4,7 @@ class_name LanguageRuntimeBackend
 signal output_changed(text)
 signal execution_finished
 signal execution_error(text)
+signal execution_diagnostics(diagnostics)
 signal sleep_requested(seconds)
 
 func configure_runtime(_runtime_id: String, _script_id: String, _source_name: String) -> void:

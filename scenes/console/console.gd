@@ -16,6 +16,8 @@ func _ready() -> void:
 	EventBus.update_context.connect(context_updt)
 	InterpreterSystem.workspace_changed.connect(_sync_documents)
 	InterpreterSystem.runtime_manager.runtimes_changed.connect(_update_status)
+	InterpreterSystem.runtime_manager.runtime_started.connect(_on_runtime_started)
+	InterpreterSystem.runtime_manager.runtime_error.connect(_on_runtime_error)
 	FeatureManager.feature_unlocked.connect(_on_progress_changed)
 	UpgradeManager.upgrade_comprado.connect(_on_progress_changed)
 	explorer.document_selected.connect(open_document)
@@ -58,6 +60,7 @@ func _setup_dialogs() -> void:
 	add_child(_delete_dialog)
 
 func open_document(kind: String, id: String) -> void:
+	empty_state.hide()
 	if kind == "help":
 		if not documentation.show_topic(id):
 			status_label.text = "Documentação bloqueada · avance no mercado para liberar."
@@ -67,13 +70,20 @@ func open_document(kind: String, id: String) -> void:
 		code_edit.hide()
 		documentation.show()
 		find_bar.hide()
-	else:
+	elif kind == "script":
 		_save_editor_to_active_script()
 		_remember_caret()
 		InterpreterSystem.set_active_script(id)
 		_load_active_script_into_editor()
 		code_edit.show()
 		documentation.hide()
+	else:
+		_save_editor_to_active_script()
+		_remember_caret()
+		code_edit.hide()
+		documentation.hide()
+		find_bar.hide()
+		empty_state.show()
 	tabs.activate(kind, id)
 	explorer.select_document(kind, id)
 	documents.show()
@@ -91,6 +101,7 @@ func _sync_documents() -> void:
 		_load_active_script_into_editor()
 		code_edit.show()
 		documentation.hide()
+		empty_state.hide()
 		tabs.active_kind = "script"
 		tabs.active_id = id
 	elif code_edit.text != InterpreterSystem.get_active_source():
@@ -132,12 +143,14 @@ func set_code_text(text: String) -> void:
 	open_document("script", str(InterpreterSystem.get_active_script().id))
 	code_edit.text = text
 	_save_editor_to_active_script()
+	code_edit.clear_diagnostics()
 	Saves.solicitar_save("script_tutorial")
 
 func get_code_text() -> String:
 	return code_edit.text
 
 func _on_code_text_changed() -> void:
+	code_edit.clear_diagnostics()
 	_save_editor_to_active_script()
 	find_bar.refresh()
 
@@ -159,8 +172,8 @@ func _on_run_pressed() -> void:
 	if tabs.active_kind != "script" or InterpreterSystem.is_script_running(_loaded_id):
 		return
 	_save_editor_to_active_script()
-	if size.y >= 480:
-		output.show()
+	code_edit.clear_diagnostics()
+	show_output()
 	if not InterpreterSystem.start_active_script(context).is_empty():
 		Saves.solicitar_save("script_executado")
 	_update_status()
@@ -172,13 +185,20 @@ func _on_stop_pressed() -> void:
 func _update_status() -> void:
 	var running := InterpreterSystem.is_script_running(_loaded_id)
 	var help_active: bool = tabs.active_kind == "help"
-	run_button.disabled = help_active or running
-	stop_button.disabled = help_active or not running
-	language_button.disabled = help_active or running
-	menu_button.disabled = help_active
+	var script_active: bool = tabs.active_kind == "script"
+	run_button.disabled = not script_active or running
+	stop_button.disabled = not script_active or not running
+	language_button.disabled = not script_active or running
+	menu_button.disabled = not script_active
 	output.stop_all_button.disabled = InterpreterSystem.get_running_runtimes().is_empty()
 	var state := str(InterpreterSystem.get_runtime_by_script_id(_loaded_id).get("status", "stopped"))
-	status_label.text = "Documentação · somente leitura" if help_active else "%s   ·   %s" % [language_button.get_item_text(language_button.selected), Explorer.STATES.get(state, "PARADO")]
+	var runtime := InterpreterSystem.get_runtime_by_script_id(_loaded_id)
+	if help_active:
+		status_label.text = "Documentação · somente leitura"
+	elif script_active:
+		status_label.text = "%s   ·   %s" % [language_button.get_item_text(language_button.selected), Explorer.STATES.get(state, "PARADO")]
+	else:
+		status_label.text = "Nenhum documento aberto"
 	status_label.theme_type_variation = &"Label"
 	if not help_active:
 		if state == "error":
@@ -187,6 +207,10 @@ func _update_status() -> void:
 			status_label.theme_type_variation = &"IDESleeping"
 		elif running:
 			status_label.theme_type_variation = &"IDEWorking"
+	if not script_active or state != "error" or str(runtime.get("source", "")) != code_edit.text:
+		code_edit.clear_diagnostics()
+	else:
+		code_edit.set_diagnostics(runtime.get("diagnostics", []))
 	explorer.refresh_states()
 	for index in range(tabs.get_tab_count()):
 		var data: Dictionary = tabs.get_tab_metadata(index)
@@ -196,8 +220,15 @@ func _update_status() -> void:
 			tabs.set_tab_tooltip(index, tabs.get_tab_title(index) + " — " + Explorer.STATES.get(runtime_state, "PARADO"))
 	_update_caret()
 
+func _on_runtime_error(_runtime_id: String, _script_id: String, _message: String) -> void:
+	show_output()
+	_update_status()
+
+func _on_runtime_started(_runtime_id: String, _script_id: String) -> void:
+	show_output()
+
 func _update_caret() -> void:
-	caret_label.text = "" if tabs.active_kind == "help" else "Ln %d, Col %d" % [code_edit.get_caret_line() + 1, code_edit.get_caret_column() + 1]
+	caret_label.text = "" if tabs.active_kind != "script" else "Ln %d, Col %d" % [code_edit.get_caret_line() + 1, code_edit.get_caret_column() + 1]
 
 func context_updt(ctx) -> void:
 	context = ctx.env_context
@@ -242,8 +273,17 @@ func _script_action(action: int) -> void:
 		2:
 			if InterpreterSystem.is_reserved_script(_dialog_script_id):
 				return
-			_delete_dialog.dialog_text = 'Excluir "%s"? Esta ação remove seu código.' % InterpreterSystem.get_active_script_title()
-			_delete_dialog.popup_centered(Vector2i(400, 160))
+			if _script_source(_dialog_script_id).strip_edges().is_empty():
+				_on_delete_confirmed()
+			else:
+				_delete_dialog.dialog_text = 'Excluir "%s"? Esta ação remove seu código.' % InterpreterSystem.get_active_script_title()
+				_delete_dialog.popup_centered(Vector2i(400, 160))
+
+func _script_source(id: String) -> String:
+	for document in InterpreterSystem.get_scripts():
+		if str(document.get("id", "")) == id:
+			return str(document.get("source", ""))
+	return ""
 
 func _on_rename_confirmed() -> void:
 	InterpreterSystem.rename_script(_dialog_script_id, _rename_line_edit.text)

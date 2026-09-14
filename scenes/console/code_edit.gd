@@ -4,6 +4,7 @@ const Profiles = preload("res://scenes/console/components/ide_language_profiles.
 const COLORS := {"keywords": Color("c5a0df"), "constants": Color("dfa77e"), "builtins": Color("d5bc80")}
 var language_id := "c_like"
 var profile: Dictionary
+var _diagnostic_lines: Array[int] = []
 
 func _ready() -> void:
 	highlight_all_occurrences = true
@@ -42,6 +43,26 @@ func configure_for_language(language: String) -> void:
 
 func completion_words() -> Array:
 	return profile.keywords + profile.constants + profile.builtins
+
+func set_diagnostics(diagnostics: Array) -> void:
+	clear_diagnostics()
+	for diagnostic in diagnostics:
+		if not diagnostic is Dictionary:
+			continue
+		var line := int(diagnostic.get("line", 0)) - 1
+		if line < 0 or line >= get_line_count() or _diagnostic_lines.has(line):
+			continue
+		set_line_background_color(line, Color("40282a"))
+		_diagnostic_lines.append(line)
+
+func clear_diagnostics() -> void:
+	for line in _diagnostic_lines:
+		if line >= 0 and line < get_line_count():
+			set_line_background_color(line, Color.TRANSPARENT)
+	_diagnostic_lines.clear()
+
+func diagnostic_lines() -> Array[int]:
+	return _diagnostic_lines.duplicate()
 
 func _request_code_completion(force: bool) -> void:
 	if is_in_comment(get_caret_line(), get_caret_column()) != -1 or is_in_string(get_caret_line(), get_caret_column()) != -1:

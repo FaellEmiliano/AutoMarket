@@ -231,3 +231,17 @@ Ao finalizar, apresente:
 * arquivos principais alterados;
 * verificações realizadas;
 * limitações ou próximos riscos, apenas quando existirem.
+
+## Agent skills
+
+### Issue tracker
+
+Issues e especificações são rastreadas no GitHub Issues deste repositório. Veja `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+A triagem usa os cinco rótulos canônicos padrão. Veja `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+A documentação de domínio segue o layout single-context. Veja `docs/agents/domain.md`.
