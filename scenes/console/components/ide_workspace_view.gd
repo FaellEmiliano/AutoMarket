@@ -49,6 +49,7 @@ var _short_layout := false
 var _saved_output_offset := 0
 var _compact_explorer := false
 var _minimized_window := false
+var _restore_output_when_wide := false
 
 func build() -> void:
 	theme = ThemeFactory.create()
@@ -217,6 +218,10 @@ func update_layout(width: float) -> void:
 		if next == LayoutMode.COMPACT:
 			_update_compact_drawer_geometry()
 		return
+	# Narrow layouts temporarily hide output so the editor remains usable. Keep the
+	# player's output-panel choice to restore it when the editor returns to wide.
+	if layout_mode_id == LayoutMode.WIDE and next != LayoutMode.WIDE:
+		_restore_output_when_wide = output.visible
 	layout_mode_id = next
 	brand.visible = next == LayoutMode.WIDE
 	sidebar.custom_minimum_size.x = 240 if next == LayoutMode.WIDE else 192
@@ -228,6 +233,9 @@ func update_layout(width: float) -> void:
 	if next != LayoutMode.WIDE:
 		output.hide()
 		documents.show()
+	elif _restore_output_when_wide:
+		show_output()
+		_restore_output_when_wide = false
 	horizontal.dragger_visibility = SplitContainer.DRAGGER_HIDDEN_COLLAPSED if next == LayoutMode.COMPACT else SplitContainer.DRAGGER_VISIBLE
 	close_button.text = "Voltar" if next == LayoutMode.COMPACT else "Mercado"
 	explorer_button.text = "Scripts"
@@ -312,9 +320,13 @@ func toggle_output() -> void:
 		output.hide()
 	else:
 		show_output()
+	if layout_mode_id != LayoutMode.WIDE:
+		_restore_output_when_wide = output.visible
 	documents.visible = not output.visible if size.y < 480 else true
 
 func show_output() -> void:
 	output.show()
 	vertical.split_offset = _saved_output_offset
+	if layout_mode_id != LayoutMode.WIDE:
+		_restore_output_when_wide = true
 	documents.visible = size.y >= 480
