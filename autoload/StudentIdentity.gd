@@ -49,12 +49,17 @@ func set_editor_mode(enabled: bool) -> void:
 func _fit_label_to_viewport() -> void:
 	if student_name_label == null:
 		return
-	# The project-level canvas_items stretch already handles physical scaling.
-	# Keep the plate in the logical canvas and reserve the IDE's top strip.
-	top_center.scale = Vector2.ONE
-	top_center.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	top_center.offset_top = 10
-	top_center.offset_bottom = 52
+	if _editor_mode:
+		var stretch := get_viewport().get_stretch_transform().get_scale()
+		top_center.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		top_center.scale = Vector2.ONE / stretch
+		top_center.position = Vector2(0, 10)
+		top_center.size = Vector2(get_viewport().get_visible_rect().size.x * stretch.x, 42)
+	else:
+		top_center.scale = Vector2.ONE
+		top_center.set_anchors_preset(Control.PRESET_TOP_WIDE)
+		top_center.offset_top = 10
+		top_center.offset_bottom = 52
 	if not visible:
 		return
 
