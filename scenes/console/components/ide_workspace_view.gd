@@ -14,6 +14,8 @@ const ICON_STOP = preload("res://assets/icons/ide_stop.svg")
 const ICON_BACK = preload("res://assets/icons/ide_back.svg")
 const ICON_MORE = preload("res://assets/icons/ide_more.svg")
 const ICON_OUTPUT = preload("res://assets/icons/ide_output.svg")
+const ICON_MAXIMIZE = preload("res://assets/icons/ide_maximize.svg")
+const ICON_MINIMIZE = preload("res://assets/icons/ide_minimize.svg")
 enum LayoutMode { WIDE, MEDIUM, COMPACT }
 var layout_mode_id := -1
 var explorer: Tree
@@ -27,6 +29,7 @@ var language_button: OptionButton
 var run_button: Button
 var stop_button: Button
 var close_button: Button
+var window_mode_button: Button
 var explorer_button: Button
 var output_button: Button
 var menu_button: MenuButton
@@ -45,6 +48,7 @@ var documents: VBoxContainer
 var _short_layout := false
 var _saved_output_offset := 0
 var _compact_explorer := false
+var _minimized_window := false
 
 func build() -> void:
 	theme = ThemeFactory.create()
@@ -89,6 +93,7 @@ func build() -> void:
 	stop_button = button(top, "Parar", "Interromper o script visível", ICON_STOP)
 	stop_button.theme_type_variation = &"IDEDangerButton"
 	close_button = button(top, "Mercado", "Salvar e voltar ao mercado · Escape", ICON_BACK)
+	window_mode_button = button(top, "", "Maximizar editor", ICON_MAXIMIZE)
 	content_host = Control.new()
 	content_host.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_child(content_host)
@@ -184,6 +189,7 @@ func build() -> void:
 	output.collapse_requested.connect(toggle_output)
 	resized.connect(_on_view_resized)
 	output.hide()
+	set_minimized_window(false)
 	update_layout(size.x)
 	# Ctrl+Tab gives keyboard users an exit from CodeEdit's indenting Tab key.
 	code_edit.focus_next = code_edit.get_path_to(run_button)
@@ -227,6 +233,13 @@ func update_layout(width: float) -> void:
 	explorer_button.text = "Scripts"
 	find_bar.update_layout(next == LayoutMode.COMPACT)
 	output.update_layout(next == LayoutMode.COMPACT)
+
+func set_minimized_window(value: bool) -> void:
+	_minimized_window = value
+	if window_mode_button == null:
+		return
+	window_mode_button.icon = ICON_MAXIMIZE if value else ICON_MINIMIZE
+	window_mode_button.tooltip_text = "Maximizar editor" if value else "Voltar ao modo minimizado"
 
 func toggle_explorer() -> void:
 	if layout_mode_id == LayoutMode.COMPACT:

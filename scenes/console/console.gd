@@ -1,6 +1,7 @@
 extends "res://scenes/console/components/ide_workspace_view.gd"
 
 signal close_requested
+signal window_mode_requested(minimized: bool)
 var context
 var _loading := false
 var _loaded_id := ""
@@ -30,6 +31,7 @@ func _ready() -> void:
 	run_button.pressed.connect(_on_run_pressed)
 	stop_button.pressed.connect(_on_stop_pressed)
 	close_button.pressed.connect(func(): close_requested.emit())
+	window_mode_button.pressed.connect(func(): window_mode_requested.emit(not _minimized_window))
 	output.stop_all_requested.connect(InterpreterSystem.stop_all)
 	language_button.item_selected.connect(_on_language_selected)
 	_setup_dialogs()

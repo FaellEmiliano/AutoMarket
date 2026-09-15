@@ -81,6 +81,8 @@ func _resolver_referencias() -> void:
 		push_error("TutorialOverlay: node ShopMenu nao encontrado")
 
 	if script_menu != null:
+		if script_menu.has_method("set_tutorial_fullscreen"):
+			script_menu.call("set_tutorial_fullscreen", true)
 		console_editor = script_menu.get_console_editor()
 		if console_editor == null:
 			push_error("TutorialOverlay: editor da IDE nao encontrado")
@@ -168,6 +170,7 @@ func _on_end_client(result: bool) -> void:
 func _finish_tutorial() -> void:
 	_set_shop_menu_highlight(false)
 	_set_script_menu_highlight(false)
+	_call_if_exists(script_menu, "set_tutorial_fullscreen", [false])
 	Saves.complete_tutorial()
 	_call_if_exists(client_spawner, "liberar_spawn")
 	queue_free()
