@@ -50,6 +50,7 @@ var _saved_output_offset := 0
 var _compact_explorer := false
 var _minimized_window := false
 var _restore_output_when_wide := false
+var _restore_output_when_tall := false
 
 func build() -> void:
 	theme = ThemeFactory.create()
@@ -312,7 +313,11 @@ func _on_view_resized() -> void:
 		_short_layout = short_now
 		documents.show()
 		if short_now:
+			_restore_output_when_tall = output.visible
 			output.hide()
+		elif _restore_output_when_tall and layout_mode_id == LayoutMode.WIDE:
+			show_output()
+			_restore_output_when_tall = false
 
 func toggle_output() -> void:
 	if output.visible:
@@ -322,6 +327,8 @@ func toggle_output() -> void:
 		show_output()
 	if layout_mode_id != LayoutMode.WIDE:
 		_restore_output_when_wide = output.visible
+	if _short_layout:
+		_restore_output_when_tall = output.visible
 	documents.visible = not output.visible if size.y < 480 else true
 
 func show_output() -> void:
@@ -329,4 +336,6 @@ func show_output() -> void:
 	vertical.split_offset = _saved_output_offset
 	if layout_mode_id != LayoutMode.WIDE:
 		_restore_output_when_wide = true
+	if _short_layout:
+		_restore_output_when_tall = true
 	documents.visible = size.y >= 480

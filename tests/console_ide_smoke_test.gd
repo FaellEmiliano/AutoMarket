@@ -83,6 +83,14 @@ func _ready() -> void:
 	menu.set_minimizado(false)
 	_check(InterpreterSystem.is_script_running(first), "Alternar o tamanho nao interrompe o runtime")
 	_check(ide.get_code_text() == running_source and ide.output.visible, "Alternar preserva codigo e saida")
+	get_window().size = Vector2i(1152, 360)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(not ide.output.visible, "Janela baixa recolhe saída para manter o editor utilizável")
+	get_window().size = Vector2i(1152, 648)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(ide.output.visible, "Recuperar altura restaura saída aberta")
 	ide._on_language_selected(0)
 	_check(InterpreterSystem.get_active_script().language == "python_like", "Guard de linguagem")
 	ide.open_document("script", second)
