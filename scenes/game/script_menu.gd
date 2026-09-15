@@ -47,10 +47,10 @@ func _sync_layer() -> void:
 	workspace_layer.layer = get_parent().layer if get_parent() is CanvasLayer else 5
 
 func _fit_workspace() -> void:
-	# Compensate canvas_items stretch locally so the IDE stays legible on small windows.
-	var stretch := get_viewport().get_stretch_transform().get_scale()
 	console.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	console.position = Vector2.ZERO
-	console.scale = Vector2.ONE / stretch
-	console.size = get_viewport().get_visible_rect().size * stretch
-	console.update_layout(console.size.x)
+	console.scale = Vector2.ONE
+	console.size = get_viewport().get_visible_rect().size
+	# canvas_items already scales the logical canvas; breakpoints use the
+	# physical window width so the IDE can select wide/medium/compact naturally.
+	console.update_layout(get_window().size.x)
