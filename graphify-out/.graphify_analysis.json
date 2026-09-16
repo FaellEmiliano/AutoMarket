@@ -1,0 +1,344 @@
+{
+  "communities": {
+    "0": [
+      "agents_automarket_agent_guidelines",
+      "agents_gameplay_education",
+      "agents_godot_mcp_policy",
+      "agents_incremental_change_policy",
+      "agents_save_compatibility",
+      "agents_verification_process",
+      "readme_automarket",
+      "readme_web_export"
+    ],
+    "1": [
+      "assets_sprites_background_cash_register",
+      "assets_sprites_background_checkout_counter",
+      "assets_sprites_background_open_shop_floor",
+      "assets_sprites_background_shop_interior",
+      "assets_sprites_background_stocked_shelves"
+    ],
+    "2": [
+      "docs_agents_issue_tracker_github_issue_tracker",
+      "docs_agents_issue_tracker_pr_triage_surface",
+      "docs_agents_issue_tracker_wayfinding_workflow",
+      "docs_agents_triage_labels_ready_for_agent",
+      "docs_agents_triage_labels_triage_labels"
+    ],
+    "3": [
+      "agents_interpreter_safety",
+      "readme_custom_interpreter",
+      "readme_execution_pipeline",
+      "readme_game_systems"
+    ],
+    "4": [
+      "docs_agents_domain_adr_conflict_policy",
+      "docs_agents_domain_domain_docs",
+      "docs_agents_domain_domain_vocabulary",
+      "docs_agents_domain_single_context_layout"
+    ],
+    "5": [
+      "assets_icons_ide_running_ide_running_icon",
+      "assets_icons_ide_running_play_symbol",
+      "assets_icons_ide_running_running_state"
+    ],
+    "6": [
+      "assets_icons_ide_back_back_navigation",
+      "assets_icons_ide_back_ide_back_arrow_icon"
+    ],
+    "7": [
+      "assets_icons_ide_clear_clear_action",
+      "assets_icons_ide_clear_clear_icon"
+    ],
+    "8": [
+      "assets_icons_ide_close_close_action",
+      "assets_icons_ide_close_ide_close_icon"
+    ],
+    "9": [
+      "assets_icons_ide_error_error_status",
+      "assets_icons_ide_error_ide_error_icon"
+    ],
+    "10": [
+      "assets_icons_ide_new_create_new_item",
+      "assets_icons_ide_new_ide_new_icon"
+    ],
+    "11": [
+      "assets_icons_ide_search_ide_search_icon",
+      "assets_icons_ide_search_search_action"
+    ],
+    "12": [
+      "assets_icons_ide_sleeping_ide_sleeping_clock_icon",
+      "assets_icons_ide_sleeping_ide_sleeping_state"
+    ],
+    "13": [
+      "assets_sprites_bot_o_ajuda_acao_de_ajuda",
+      "assets_sprites_bot_o_ajuda_botao_de_ajuda"
+    ],
+    "14": [
+      "assets_icons_ide_collapse_collapse_chevron_icon"
+    ],
+    "15": [
+      "assets_icons_ide_explorer_ide_explorer_icon"
+    ],
+    "16": [
+      "assets_icons_ide_more_more_options_icon"
+    ],
+    "17": [
+      "assets_icons_ide_next_next_navigation_icon"
+    ],
+    "18": [
+      "assets_icons_ide_output_ide_output_icon"
+    ],
+    "19": [
+      "assets_icons_ide_previous_previous_navigation_icon"
+    ],
+    "20": [
+      "assets_icons_ide_stop_stop_icon"
+    ],
+    "21": [
+      "assets_sprites_ansioso_anxious_character_sprite"
+    ],
+    "22": [
+      "assets_sprites_background2_shop_interior_background"
+    ],
+    "23": [
+      "assets_sprites_background_titulo_village_shop_background"
+    ],
+    "24": [
+      "assets_sprites_bot_o_github_github_button"
+    ],
+    "25": [
+      "assets_sprites_bot_o_inicar_start_button"
+    ],
+    "26": [
+      "assets_sprites_cliente_customer_character_sprite"
+    ],
+    "27": [
+      "assets_sprites_faceset1_character_face_sprite"
+    ],
+    "28": [
+      "assets_sprites_feliz_happy_character_sprite"
+    ],
+    "29": [
+      "assets_sprites_icone_144x144_cat_icon"
+    ],
+    "30": [
+      "assets_sprites_icone_180x180_cat_icon"
+    ],
+    "31": [
+      "assets_sprites_icone_512x512_cat_icon"
+    ],
+    "32": [
+      "assets_sprites_icone_cat_icon"
+    ],
+    "33": [
+      "assets_sprites_menu2_menu_board"
+    ],
+    "34": [
+      "assets_sprites_menu_menu_board"
+    ],
+    "35": [
+      "assets_sprites_nota_purchase_note"
+    ],
+    "36": [
+      "assets_sprites_stock_arroz_rice"
+    ],
+    "37": [
+      "assets_sprites_stock_chocolate_chocolate_bar"
+    ],
+    "38": [
+      "assets_sprites_stock_farinha_flour"
+    ],
+    "39": [
+      "assets_sprites_stock_feijao_beans"
+    ],
+    "40": [
+      "assets_sprites_stock_morango_strawberries"
+    ],
+    "41": [
+      "assets_sprites_stock_uva_grapes"
+    ],
+    "42": [
+      "assets_sprites_titulo_automarket_title"
+    ],
+    "43": [
+      "icon_game_controller"
+    ]
+  },
+  "cohesion": {
+    "0": 0.2857142857142857,
+    "1": 0.4,
+    "2": 0.5,
+    "3": 0.5,
+    "4": 0.5,
+    "5": 1.0,
+    "6": 1.0,
+    "7": 1.0,
+    "8": 1.0,
+    "9": 1.0,
+    "10": 1.0,
+    "11": 1.0,
+    "12": 1.0,
+    "13": 1.0,
+    "14": 1.0,
+    "15": 1.0,
+    "16": 1.0,
+    "17": 1.0,
+    "18": 1.0,
+    "19": 1.0,
+    "20": 1.0,
+    "21": 1.0,
+    "22": 1.0,
+    "23": 1.0,
+    "24": 1.0,
+    "25": 1.0,
+    "26": 1.0,
+    "27": 1.0,
+    "28": 1.0,
+    "29": 1.0,
+    "30": 1.0,
+    "31": 1.0,
+    "32": 1.0,
+    "33": 1.0,
+    "34": 1.0,
+    "35": 1.0,
+    "36": 1.0,
+    "37": 1.0,
+    "38": 1.0,
+    "39": 1.0,
+    "40": 1.0,
+    "41": 1.0,
+    "42": 1.0,
+    "43": 1.0
+  },
+  "gods": [
+    {
+      "id": "agents_automarket_agent_guidelines",
+      "label": "AutoMarket Agent Guidelines",
+      "degree": 9
+    },
+    {
+      "id": "docs_agents_domain_domain_docs",
+      "label": "Domain Documentation Rules",
+      "degree": 4
+    },
+    {
+      "id": "docs_agents_issue_tracker_github_issue_tracker",
+      "label": "GitHub Issue Tracker Workflow",
+      "degree": 4
+    },
+    {
+      "id": "readme_automarket",
+      "label": "AutoMarket",
+      "degree": 3
+    },
+    {
+      "id": "readme_custom_interpreter",
+      "label": "Custom Programming Language Interpreter",
+      "degree": 3
+    },
+    {
+      "id": "docs_agents_triage_labels_triage_labels",
+      "label": "Canonical Triage Label Mapping",
+      "degree": 3
+    },
+    {
+      "id": "assets_sprites_background_shop_interior",
+      "label": "Pixel Art Shop Interior",
+      "degree": 3
+    },
+    {
+      "id": "agents_godot_mcp_policy",
+      "label": "Godot MCP Policy",
+      "degree": 2
+    },
+    {
+      "id": "agents_interpreter_safety",
+      "label": "Interpreter Safety Constraints",
+      "degree": 2
+    },
+    {
+      "id": "agents_gameplay_education",
+      "label": "Educational Gameplay Constraints",
+      "degree": 2
+    }
+  ],
+  "surprises": [
+    {
+      "source": "AutoMarket Agent Guidelines",
+      "target": "Domain Documentation Rules",
+      "source_files": [
+        "AGENTS.md",
+        "docs/agents/domain.md"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "why": "connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "AutoMarket Agent Guidelines",
+      "target": "GitHub Issue Tracker Workflow",
+      "source_files": [
+        "AGENTS.md",
+        "docs/agents/issue-tracker.md"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "why": "connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "AutoMarket Agent Guidelines",
+      "target": "Canonical Triage Label Mapping",
+      "source_files": [
+        "AGENTS.md",
+        "docs/agents/triage-labels.md"
+      ],
+      "confidence": "EXTRACTED",
+      "relation": "references",
+      "why": "connects across different repos/directories; bridges separate communities"
+    },
+    {
+      "source": "Godot MCP Policy",
+      "target": "Godot Web Export Support",
+      "source_files": [
+        "AGENTS.md",
+        "README.md"
+      ],
+      "confidence": "INFERRED",
+      "relation": "conceptually_related_to",
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories"
+    },
+    {
+      "source": "Interpreter Safety Constraints",
+      "target": "Custom Programming Language Interpreter",
+      "source_files": [
+        "AGENTS.md",
+        "README.md"
+      ],
+      "confidence": "INFERRED",
+      "relation": "rationale_for",
+      "why": "inferred connection - not explicitly stated in source; connects across different repos/directories"
+    }
+  ],
+  "questions": [
+    {
+      "type": "bridge_node",
+      "question": "Why does `AutoMarket Agent Guidelines` connect `Community 0` to `Community 2`, `Community 3`, `Community 4`?",
+      "why": "High betweenness centrality (0.056) - this node is a cross-community bridge."
+    },
+    {
+      "type": "bridge_node",
+      "question": "Why does `Domain Documentation Rules` connect `Community 4` to `Community 0`?",
+      "why": "High betweenness centrality (0.020) - this node is a cross-community bridge."
+    },
+    {
+      "type": "bridge_node",
+      "question": "Why does `Interpreter Safety Constraints` connect `Community 3` to `Community 0`?",
+      "why": "High betweenness centrality (0.015) - this node is a cross-community bridge."
+    },
+    {
+      "type": "isolated_nodes",
+      "question": "What connects `AutoMarket Game Systems`, `Single-Context Domain Layout`, `Pull Requests as Triage Surface` to the rest of the system?",
+      "why": "52 weakly-connected nodes found - possible documentation gaps or missing edges."
+    }
+  ]
+}

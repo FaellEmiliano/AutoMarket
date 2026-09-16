@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://b8n8e0rhvwn15"
-path="res://.godot/imported/delivery_online_panel.png-247922806a76a256202d8da3e75c8ab5.ctex"
+uid="uid://d1cvgfrav381"
+path="res://.godot/imported/.ide_next.png-297c3ccd5d5546c2dc3005f82119a101.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://docs/evidence/delivery_online_panel.png"
-dest_files=["res://.godot/imported/delivery_online_panel.png-247922806a76a256202d8da3e75c8ab5.ctex"]
+source_file="res://graphify-out/.ide_next.png"
+dest_files=["res://.godot/imported/.ide_next.png-297c3ccd5d5546c2dc3005f82119a101.ctex"]
 
 [params]
 

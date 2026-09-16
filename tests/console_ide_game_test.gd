@@ -34,6 +34,7 @@ func _ready() -> void:
 	_check(tutorial.current_step == 2 and menu.is_aberto(), "Botão Scripts avança tutorial")
 	_check(menu.workspace_layer.layer == 21, "IDE acompanha highlight do tutorial")
 	tutorial._enter_step(3)
+	_check(not menu.is_minimizado(), "Tutorial keeps the IDE full screen")
 	_check(ide.get_code_text().contains("Ola mundo"), "Tutorial insere código")
 	ide._on_run_pressed()
 	await get_tree().create_timer(0.2).timeout
@@ -42,7 +43,11 @@ func _ready() -> void:
 	tutorial._finish_tutorial()
 	await get_tree().process_frame
 	_check(menu.workspace_layer.layer == 5, "Highlight restaura layer")
-	menu.set_aberto(true)
+	menu.set_aberto(false)
+	menu.toggle_button.button_pressed = true
+	await get_tree().process_frame
+	_check(menu.is_minimizado(), "Opening after tutorial uses minimized mode")
+	menu.set_minimizado(false)
 	ide.find_bar.open()
 	_key(KEY_ESCAPE)
 	await get_tree().process_frame

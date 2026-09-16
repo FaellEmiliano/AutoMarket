@@ -1,247 +1,373 @@
-# AutoMarket — instruções para agentes
+# AutoMarket — AGENTS.md
 
-- Para qualquer tarefa relacionada à edição, execução, depuração ou teste do jogo, use o MCP Godot como interface principal com o projeto e com o editor.
-- Considere `D:\AutoMarket\AutoMarket` o caminho raiz do projeto Godot em todas as chamadas ao MCP.
-- Para edições e testes do jogo, não substitua o MCP Godot por automação de interface, comandos diretos do executável ou ferramentas genéricas, salvo quando o MCP não oferecer a operação necessária ou estiver indisponível. Nesse caso, informe claramente a limitação antes de usar uma alternativa.
+## Core rules
 
+- Use the Godot MCP as the primary interface for editing, running, debugging, and testing the game.
+- Default Godot project root: `D:\AutoMarket\AutoMarket`.
+- In Orca worktrees, operate on the active worktree, not the main checkout.
+- Use direct executables/UI automation only when the Godot MCP cannot perform the required operation; state the limitation first.
+- Prefer the smallest correct change. Preserve existing public interfaces and stable systems.
+- Verify real files, APIs, node paths, signals, classes, and functions before using them.
+- Do not mix unrelated refactors or cosmetic changes into functional work.
 
-## Projeto
+## Project
 
-Este repositório contém um jogo educativo desenvolvido em Godot e destinado também à exportação web.
+AutoMarket is an educational Godot game with web export support. Players automate game systems by writing code in the project's custom scripting language.
 
-O jogador automatiza sistemas do jogo escrevendo scripts em uma linguagem própria semelhante a C. O interpretador é implementado em GDScript e possui, de forma geral:
+Relevant interpreter/runtime areas may include:
+- lexer;
+- parser;
+- AST;
+- printer/debug representation;
+- executor/runtime;
+- scopes and call stack;
+- built-ins;
+- synchronous/incremental/asynchronous execution;
+- validators/analyzers;
+- editor/runtime integration.
 
-* lexer;
-* parser;
-* nós de AST;
-* executor baseado em Visitor;
-* ASTPrinter;
-* funções built-in;
-* modos de execução síncrona e assíncrona.
-
-O projeto prioriza clareza educacional, estabilidade, mudanças incrementais e compatibilidade com sistemas já existentes.
-
-## Princípios gerais
-
-Antes de modificar qualquer código:
-
-1. Leia os arquivos diretamente relacionados à tarefa.
-2. Identifique o fluxo atual e as dependências.
-3. Confirme nomes reais de arquivos, classes, nós, sinais e funções.
-4. Não suponha que uma API existe sem verificar.
-5. Faça a menor alteração que resolva corretamente o problema.
-
-Evite:
-
-* refatorações fora do escopo;
-* abstrações criadas para uso hipotético;
-* duplicação de sistemas existentes;
-* renomeações amplas sem necessidade;
-* alterações cosméticas misturadas com mudanças funcionais;
-* substituir uma solução estável apenas por preferência arquitetural.
-
-Preserve as interfaces públicas existentes sempre que possível.
+Do not assume a single language backend or runtime path. Confirm the active implementation before changing interpreter behavior.
 
 ## Godot
 
-Ao modificar cenas, scripts ou recursos:
+When changing scenes, scripts, or resources:
+- verify node paths;
+- preserve existing signal connections;
+- avoid duplicate signal connections;
+- respect node lifecycle/readiness;
+- do not invent autoloads, singletons, or event buses;
+- keep domain logic outside UI when an appropriate layer already exists;
+- preserve web-export compatibility;
+- avoid blocking the main thread;
+- investigate the source of `null` values instead of masking them.
 
-* verifique caminhos de nós antes de usá-los;
-* preserve conexões de sinais existentes;
-* evite conectar o mesmo sinal mais de uma vez;
-* considere que um nó pode ainda não estar pronto;
-* não invente autoloads, singletons ou EventBus;
-* mantenha lógica de domínio fora da interface quando já existir uma camada apropriada;
-* considere compatibilidade com exportação web;
-* evite operações bloqueantes na thread principal.
+For UI work, preserve responsiveness, readability, and behavior across relevant resolutions.
 
-Sempre investigue a origem de valores `null` em vez de apenas adicionar verificações defensivas que escondam o problema.
+## Interpreter
 
-## Interpretador
+Interpreter changes require extra care.
 
-Mudanças no interpretador exigem atenção especial.
+Check all affected layers when relevant:
+- lexer/tokens;
+- parser;
+- AST;
+- printer/debug output;
+- runtime/executor;
+- scopes/call stack;
+- built-ins;
+- validation/analysis;
+- errors;
+- editor integration;
+- tests/examples.
 
-Ao adicionar ou alterar sintaxe, avalie todos os componentes relevantes:
+Preserve existing semantics unless explicitly changed, including control flow, precedence, scope behavior, call stack behavior, collection semantics, entry-point rules, execution budgets, and incremental execution.
 
-* tokens e lexer;
-* regras do parser;
-* nós da AST;
-* ASTPrinter;
-* executor;
-* escopos;
-* mensagens de erro;
-* scripts de teste ou exemplos.
+Do not perform deep interpreter rewrites without explicit need.
 
-Preserve:
+Loops/recursion must not freeze Godot. Respect execution limits, stepping, interruption, and async/incremental mechanisms.
 
-* escopo estático;
-* precedência dos operadores;
-* comportamento de operadores prefixos e pós-fixos;
-* propagação correta de `return`;
-* funcionamento de `break` e `continue`;
-* arrays estáticos;
-* pilhas de chamadas e escopos;
-* obrigatoriedade de `main`, quando aplicável.
-
-Não faça uma refatoração profunda do interpretador sem solicitação explícita.
-
-Não implemente funções assíncronas bloqueando a execução principal.
-
-Loops executados pelo modo síncrono não podem travar a Godot. Analise limites, interrupção, orçamento de execução ou o mecanismo assíncrono já existente antes de modificar o comportamento de `while` ou `for`.
-
-Cada alteração funcional no interpretador deve incluir ao menos um script mínimo que demonstre o comportamento esperado e, quando relevante, um caso de erro ou regressão.
+Every functional interpreter change should include a minimal working script and, when relevant, an error/regression case.
 
 ## Gameplay
 
-Mudanças de gameplay devem preservar o objetivo educacional.
+Gameplay changes must preserve the educational goal.
 
-Antes de concluir uma mecânica, verifique:
+Check:
+- the programming concept being taught;
+- trivial bypasses;
+- exploits;
+- regressions of earlier challenges;
+- clarity of player feedback;
+- reward/time/cost consistency.
 
-* qual conceito de programação ela pretende ensinar;
-* se existe uma solução trivial que ignora esse conceito;
-* se a regra pode ser explorada;
-* se desafios anteriores continuam funcionando;
-* se o jogador recebe informação suficiente para entender a tarefa;
-* se recompensas, tempos e custos permanecem coerentes.
+Prefer simple inputs/outputs, observable rules, and deterministic results.
 
-Não aumente a complexidade do código do jogador apenas para tornar o desafio artificialmente difícil.
+## Saves and progression
 
-Prefira entradas e saídas simples, regras observáveis e resultados determinísticos.
+Before changing persisted data, inspect the save system.
 
-## Saves e progressão
+When format changes are necessary:
+- preserve compatibility when practical;
+- provide migration/defaults;
+- never silently erase progress;
+- document meaningful format changes.
 
-Não altere nomes, tipos ou estruturas persistidas sem verificar o sistema de save.
+Check money, upgrades, stock, customers, deliveries, rewards, and progression for exploits/regressions.
 
-Quando uma mudança de formato for necessária:
+# Agent orchestration
 
-* preserve compatibilidade quando possível;
-* forneça migração ou valores padrão;
-* não apague progresso silenciosamente;
-* documente claramente a alteração.
+The top-level agent is the **coordinator/maestro**.
 
-Mudanças em dinheiro, upgrades, estoque, clientes ou recompensas devem ser verificadas quanto a exploits e regressões de progressão.
+Use Orca only when delegation adds value. Small/local tasks should be handled directly.
 
-## Uso de subagentes
+Use Orca for:
+- independent parallel work;
+- multi-system investigation;
+- multi-file implementation;
+- specialized review;
+- large UI/gameplay/interpreter work;
+- tasks that benefit from separate planning, implementation, and review.
 
-Não use subagentes automaticamente para tarefas pequenas, locais ou de causa evidente.
+Use the installed `orca-cli` and `orchestration` skills for Orca operations.
 
-Use subagentes quando houver:
+## Coordinator responsibilities
 
-* investigação independente em vários sistemas;
-* revisão especializada do interpretador;
-* auditoria ampla de UI;
-* análise de gameplay ou economia;
-* revisão independente de uma mudança crítica;
-* partes realmente independentes que possam ser analisadas em paralelo.
+The coordinator must:
+1. understand scope and acceptance criteria;
+2. inspect docs/code/Graphify as needed;
+3. decide direct execution vs orchestration;
+4. build a small dependency DAG when orchestrating;
+5. choose model + reasoning **explicitly for every worker**;
+6. create isolated worktrees when parallel writes are needed;
+7. send only necessary context;
+8. monitor results, questions, failures, and blockers;
+9. review/integrate worker output;
+10. run final validation and inspect the integrated diff.
 
-Papéis recomendados:
+The coordinator should not implement the whole feature itself when safe delegation is clearly useful.
 
-### Investigador
+## Mandatory model routing
 
-Trabalha preferencialmente em modo somente leitura.
+Never let workers inherit the coordinator model/effort by default.
 
-Entrega:
+Before every worker launch, explicitly choose:
+- model;
+- reasoning effort;
+- role/scope;
+- worktree;
+- completion criteria.
 
-* arquivos relevantes;
-* descrição do fluxo atual;
-* causa provável;
-* riscos;
-* pontos seguros de alteração.
+### GPT-5.6 Luna
+Use for:
+- repository exploration;
+- locating files/symbols/references;
+- Graphify-assisted lookup;
+- read-only investigation;
+- simple tests;
+- docs;
+- repetitive/mechanical work;
+- small isolated edits.
 
-Não edita arquivos e não delega para outros agentes.
+Reasoning: `low` by default, `medium` when analysis is needed.
 
-### Revisor do interpretador
+### GPT-5.6 Terra
+Use for:
+- normal implementation;
+- multi-file changes;
+- debugging;
+- moderate refactors;
+- integration work;
+- non-trivial Godot/UI/gameplay changes.
 
-Analisa mudanças em lexer, parser, AST, executor, escopos e funções built-in.
+Reasoning: `medium` by default, `high` for difficult work.
 
-Entrega:
+### GPT-5.6 Sol
+Reserve for:
+- architecture;
+- difficult/ambiguous debugging;
+- major refactors;
+- high-risk interpreter changes;
+- critical review;
+- escalation after Terra is insufficient.
 
-* incompatibilidades;
-* regressões possíveis;
-* casos de teste;
-* correções necessárias.
+Do not use Sol for routine workers.
 
-Não deve propor uma reescrita completa quando uma alteração incremental for suficiente.
+### Escalation
+Prefer: `Luna -> Terra -> Sol`
 
-### Revisor Godot
+Escalate only when the task fails, remains uncertain, becomes more complex, or needs stronger architectural judgment.
 
-Verifica cenas, sinais, caminhos de nós, recursos, ciclo de vida e compatibilidade web.
+Before escalating, check whether the real problem is missing context, poor decomposition, stale dependencies, or the wrong worktree.
 
-### Revisor de gameplay
+## Nested orchestration
 
-Avalia clareza, objetivo educacional, soluções triviais, exploits, economia e regressões.
+Workers must not create other workers by default.
 
-O agente principal continua responsável por:
+The coordinator may explicitly designate a Terra worker as a **subcoordinator** when its task is large enough to benefit from decomposition.
 
-* decidir a solução;
-* editar os arquivos;
-* integrar os resultados;
-* executar verificações;
-* revisar o diff final.
+Maximum depth:
 
-Não permita que dois agentes editem os mesmos arquivos simultaneamente.
+`Coordinator -> Subcoordinator -> Helper`
 
-Subagentes não devem criar outros subagentes, salvo solicitação explícita.
+Helpers must never delegate further.
 
-## Processo de trabalho
+Subcoordinators should offload cheap supporting work to Luna when useful, especially:
+- codebase lookup;
+- Graphify queries;
+- symbol/reference discovery;
+- read-only investigation;
+- simple test generation;
+- documentation;
+- mechanical validation;
+- small isolated edits.
 
-Para tarefas não triviais:
+Prefer top-level decomposition when those subtasks are already known before dispatch.
 
-1. Investigue o comportamento atual.
-2. Identifique os arquivos que realmente precisam mudar.
-3. Elabore um plano curto.
-4. Implemente em etapas pequenas.
-5. Execute as verificações disponíveis.
-6. Revise o diff completo.
-7. Remova mudanças acidentais ou fora do escopo.
-8. Resuma o resultado e as limitações.
+Do not create nested workers when orchestration overhead exceeds expected token/context savings.
 
-Não pare apenas na análise quando a tarefa solicitar implementação.
+Subcoordinators should summarize helper results instead of forwarding full transcripts.
 
-Não declare que uma mudança funciona sem executar alguma forma relevante de verificação.
+# Worktrees and parallelism
 
-## Verificação
+- Parallel writing workers must use separate worktrees.
+- Never allow two workers to write to the same worktree simultaneously.
+- Do not parallelize tasks that heavily overlap files/state.
+- Use explicit DAG dependencies for serial work.
+- Worktrees prevent physical conflicts, not semantic conflicts.
+- Confirm active worktree/branch before edits and integration.
 
-Use os testes e comandos existentes no repositório.
+Read-only investigators usually do not need their own write-oriented worktree unless required by the runtime.
 
-Quando não houver teste automatizado adequado:
+# Graphify
 
-* crie ou utilize um script mínimo de reprodução;
-* valide parsing e execução para alterações no interpretador;
-* valide caminhos de nós e sinais para alterações Godot;
-* revise o diff;
-* informe claramente o que foi e o que não foi testado.
+When `graphify-out/` exists and is reasonably current:
+1. read `GRAPH_REPORT.md` before broad exploration;
+2. use Graphify to locate architecture/dependencies/impact;
+3. narrow subsequent code reading;
+4. verify critical details in real code.
 
-Não introduza ferramentas, frameworks ou dependências apenas para testar uma mudança pequena.
+Use Graphify for:
+- architecture discovery;
+- dependency analysis;
+- impact analysis;
+- task boundaries;
+- locating related systems;
+- planning Orca DAGs.
 
-## Escopo e qualidade
+Graphify guides navigation; code remains the source of truth.
 
-Uma tarefa está concluída quando:
+Update the graph after meaningful structural changes. Do not rebuild it unnecessarily.
 
-* o comportamento solicitado foi implementado;
-* a causa do problema foi tratada, não apenas mascarada;
-* as mudanças permaneceram dentro do escopo;
-* não existem alterações acidentais no diff;
-* verificações relevantes foram executadas;
-* riscos ou limitações restantes foram informados.
+# Matt Pocock skills
 
-Ao finalizar, apresente:
+Use installed skills as engineering workflow tools, not mandatory ceremony.
 
-* resumo do que mudou;
-* arquivos principais alterados;
-* verificações realizadas;
-* limitações ou próximos riscos, apenas quando existirem.
+For large/ambiguous features, prefer when useful:
 
-## Agent skills
+`grill-with-docs -> prototype? -> to-prd -> to-tickets -> Orca DAG -> implementation -> review`
 
-### Issue tracker
+Skip steps that add no value.
 
-Issues e especificações são rastreadas no GitHub Issues deste repositório. Veja `docs/agents/issue-tracker.md`.
+Use `prototype` only when a technical uncertainty is expensive enough to justify an experiment.
 
-### Triage labels
+## `/implement`
 
-A triagem usa os cinco rótulos canônicos padrão. Veja `docs/agents/triage-labels.md`.
+`/implement` is an execution skill, not the coordinator.
 
-### Domain docs
+In orchestrated work, prefer:
 
-A documentação de domínio segue o layout single-context. Veja `docs/agents/domain.md`.
+`Orca task -> isolated worker/worktree -> /implement <ticket/spec> -> tests/review -> commit/result -> coordinator`
+
+The coordinator owns decomposition, model routing, DAGs, integration, and cross-worker review.
+
+A worker using `/implement` should implement only its assigned ticket/spec and must not redefine the project plan.
+
+For small tasks, `/implement` may be used directly without Orca.
+
+Use TDD/review skills when they materially improve confidence.
+
+# Context discipline
+
+Workers receive only what they need:
+- task objective;
+- acceptance criteria;
+- relevant architecture/files;
+- dependencies;
+- established decisions;
+- applicable AGENTS.md constraints.
+
+Do not forward full conversation history when a summary is enough.
+
+Worker output should be concise:
+- summary;
+- files changed;
+- decisions;
+- tests/checks run;
+- unresolved problems.
+
+# Recommended roles
+
+## Investigator
+Read-only when possible. Return relevant files, current flow, dependencies, likely cause, risks, and safe edit points.
+
+## Implementer
+Make only scoped changes, respect prior decisions, validate locally, and avoid unrelated work.
+
+## Interpreter reviewer
+Check lexer/parser/AST/runtime/scopes/built-ins/stepping/validators for regressions and missing tests.
+
+## Godot reviewer
+Check scenes, signals, node paths, lifecycle, state, responsiveness, runtime integration, and web compatibility.
+
+## Gameplay reviewer
+Check educational intent, clarity, trivial bypasses, exploits, economy, progression, and regressions.
+
+## Final reviewer
+Review the integrated result, not only isolated worker branches.
+
+# Workflow
+
+For non-trivial work:
+1. read relevant docs;
+2. use Graphify when useful;
+3. inspect current code/behavior;
+4. define scope and acceptance criteria;
+5. choose direct execution or orchestration;
+6. use planning/spec skills when useful;
+7. create a small DAG;
+8. route each worker to an explicit model + reasoning level;
+9. use isolated worktrees for parallel writes;
+10. run safe independent tasks in parallel;
+11. collect results and resolve blockers;
+12. review/integrate;
+13. validate with tests and Godot MCP;
+14. inspect the final diff;
+15. remove accidental/out-of-scope changes;
+16. update docs/Graphify when justified;
+17. report the result concisely.
+
+Do not stop at analysis when implementation was requested.
+
+Do not claim success without relevant verification.
+
+# Verification
+
+Use existing repository tests/commands first.
+
+When automated tests are insufficient:
+- create/use a minimal reproduction;
+- validate parsing/execution for interpreter changes;
+- validate node paths/signals for Godot changes;
+- validate behavior in the editor when relevant;
+- inspect the diff;
+- state what was and was not tested.
+
+For worktree-based changes, run critical checks again after integration.
+
+Do not add heavy tooling/dependencies just to test a small change.
+
+# Completion criteria
+
+A task is complete when:
+- requested behavior is implemented;
+- root cause is addressed, not masked;
+- scope is respected;
+- no accidental diff remains;
+- relevant checks passed;
+- worker outputs are integrated/reviewed;
+- remaining risks are disclosed.
+
+Final report:
+- what changed;
+- main files changed;
+- checks performed;
+- relevant architectural decisions;
+- remaining risks only when they exist.
+
+# Repository agent docs
+
+- Issue tracker: `docs/agents/issue-tracker.md`
+- Triage labels: `docs/agents/triage-labels.md`
+- Domain docs: `docs/agents/domain.md`
+
+Use GitHub Issues for durable/spec-level work. Orca-internal tasks may stay ephemeral when they do not need long-term tracking.

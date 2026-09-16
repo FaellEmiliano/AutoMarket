@@ -1,6 +1,7 @@
 extends Node
 
 const MenuScene = preload("res://scenes/game/script_menu.tscn")
+const ThemeFactory = preload("res://scenes/console/components/ide_theme.gd")
 var menu
 var ide
 var failures: Array[String] = []
@@ -13,7 +14,32 @@ func _ready() -> void:
 	add_child(menu)
 	await get_tree().process_frame
 	ide = menu.get_console_editor()
+	_check(ide.theme.default_font == ThemeFactory.UI, "IDE usa a fonte empacotada em vez de fallback do sistema")
+	_check(ide.theme.get_font("font", "CodeEdit") == ThemeFactory.MONO, "Editor de codigo usa a fonte monoespacada empacotada")
 	menu.set_aberto(true)
+	_check(menu.is_minimizado(), "Direct opening starts minimized")
+	var usable_size := get_viewport().get_visible_rect().size * get_viewport().get_stretch_transform().get_scale()
+	_check(ide.size.is_equal_approx(usable_size * Vector2(1.0 / 3.0, 1.0 / 2.0)), "Minimized editor uses one third by one half of the viewport")
+	_check(ide.window_mode_button.tooltip_text == "Maximizar editor", "Maximize control has a clear tooltip")
+	var maximize_rect: Rect2 = ide.window_mode_button.get_global_rect()
+	var editor_rect: Rect2 = ide.get_global_rect()
+	var viewport_rect := get_viewport().get_visible_rect()
+	_check(editor_rect.end.is_equal_approx(viewport_rect.end), "Minimized editor stays anchored to the bottom-right corner")
+	_check(
+		ide.window_mode_button.get_parent().get_combined_minimum_size().x <= ide.size.x,
+		"Compact toolbar fits inside the minimized editor (%s <= %s)" % [ide.window_mode_button.get_parent().get_combined_minimum_size().x, ide.size.x],
+	)
+	_check(
+		ide.window_mode_button.is_visible_in_tree()
+		and editor_rect.encloses(maximize_rect),
+		"Maximize control remains visible inside the minimized editor"
+	)
+	ide.window_mode_button.emit_signal("pressed")
+	_check(not menu.is_minimizado(), "Control maximizes the IDE")
+	ide.window_mode_button.emit_signal("pressed")
+	_check(menu.is_minimizado(), "Control restores minimized mode")
+	ide.window_mode_button.emit_signal("pressed")
+	_check(not menu.is_minimizado(), "Remaining tests use the full IDE")
 	_check(menu.is_aberto() and ide.is_visible_in_tree(), "IDE abre")
 	_check(not ide.output.visible, "Saída inicia recolhida")
 	var first := str(InterpreterSystem.get_active_script().id)
@@ -65,6 +91,19 @@ func _ready() -> void:
 	_check(InterpreterSystem.is_script_running(first), "Run inicia Python")
 	_check(ide.language_button.disabled, "Language protegido no runtime")
 	_check(ide.status_label.text.contains("DORMINDO"), "Status sleeping")
+	var running_source: String = str(ide.get_code_text())
+	menu.set_minimizado(true)
+	menu.set_minimizado(false)
+	_check(InterpreterSystem.is_script_running(first), "Alternar o tamanho nao interrompe o runtime")
+	_check(ide.get_code_text() == running_source and ide.output.visible, "Alternar preserva codigo e saida")
+	get_window().size = Vector2i(1152, 360)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(not ide.output.visible, "Janela baixa recolhe saída para manter o editor utilizável")
+	get_window().size = Vector2i(1152, 648)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(ide.output.visible, "Recuperar altura restaura saída aberta")
 	ide._on_language_selected(0)
 	_check(InterpreterSystem.get_active_script().language == "python_like", "Guard de linguagem")
 	ide.open_document("script", second)
@@ -127,6 +166,10 @@ func _ready() -> void:
 			_check(ide.layout_mode_id == ide.LayoutMode.MEDIUM, "Modo médio")
 		if dimensions.x == 640:
 			_check(ide.layout_mode_id == ide.LayoutMode.COMPACT, "Modo compacto")
+			menu.set_minimizado(true)
+			_check(ide.toolbar.get_combined_minimum_size().x <= ide.size.x, "Toolbar minimizada cabe em 640x360")
+			_check(ide.window_mode_button.is_visible_in_tree(), "Maximizar permanece acessivel em 640x360")
+			menu.set_minimizado(false)
 			ide.toggle_explorer()
 			_check(ide.sidebar.visible and ide.drawer_scrim.visible, "Gaveta compacta e fundo acessíveis")
 			_check(ide.workspace.visible, "Editor permanece atrás da gaveta")

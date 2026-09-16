@@ -14,6 +14,8 @@ const ICON_STOP = preload("res://assets/icons/ide_stop.svg")
 const ICON_BACK = preload("res://assets/icons/ide_back.svg")
 const ICON_MORE = preload("res://assets/icons/ide_more.svg")
 const ICON_OUTPUT = preload("res://assets/icons/ide_output.svg")
+const ICON_MAXIMIZE = preload("res://assets/icons/ide_maximize.svg")
+const ICON_MINIMIZE = preload("res://assets/icons/ide_minimize.svg")
 enum LayoutMode { WIDE, MEDIUM, COMPACT }
 var layout_mode_id := -1
 var explorer: Tree
@@ -27,9 +29,11 @@ var language_button: OptionButton
 var run_button: Button
 var stop_button: Button
 var close_button: Button
+var window_mode_button: Button
 var explorer_button: Button
 var output_button: Button
 var menu_button: MenuButton
+var toolbar: HBoxContainer
 var new_button: Button
 var status_label: Label
 var caret_label: Label
@@ -45,6 +49,9 @@ var documents: VBoxContainer
 var _short_layout := false
 var _saved_output_offset := 0
 var _compact_explorer := false
+var _minimized_window := false
+var _restore_output_when_wide := false
+var _restore_output_when_tall := false
 
 func build() -> void:
 	theme = ThemeFactory.create()
@@ -70,25 +77,26 @@ func build() -> void:
 	var toolbar_panel := PanelContainer.new()
 	toolbar_panel.theme_type_variation = &"IDEToolbar"
 	column.add_child(toolbar_panel)
-	var top := HBoxContainer.new()
-	top.add_theme_constant_override("separation", 8)
-	toolbar_panel.add_child(top)
-	explorer_button = button(top, "Scripts", "Abrir ou fechar scripts e documentação", ICON_EXPLORER)
+	toolbar = HBoxContainer.new()
+	toolbar.add_theme_constant_override("separation", 8)
+	toolbar_panel.add_child(toolbar)
+	window_mode_button = button(toolbar, "", "Maximizar editor", ICON_MAXIMIZE)
+	explorer_button = button(toolbar, "Scripts", "Abrir ou fechar scripts e documentação", ICON_EXPLORER)
 	brand = Label.new()
 	brand.text = "EDITOR DE SCRIPTS"
 	brand.theme_type_variation = &"IDESectionLabel"
 	brand.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top.add_child(brand)
+	toolbar.add_child(brand)
 	language_button = OptionButton.new()
 	language_button.tooltip_text = "Linguagem do script; alterar não converte o código"
 	language_button.add_item("C-like")
 	language_button.add_item("Python-like")
-	top.add_child(language_button)
-	run_button = button(top, "Rodar", "Executar o script visível · Ctrl+Enter", ICON_RUN)
+	toolbar.add_child(language_button)
+	run_button = button(toolbar, "Rodar", "Executar o script visível · Ctrl+Enter", ICON_RUN)
 	run_button.theme_type_variation = &"IDEPrimaryButton"
-	stop_button = button(top, "Parar", "Interromper o script visível", ICON_STOP)
+	stop_button = button(toolbar, "Parar", "Interromper o script visível", ICON_STOP)
 	stop_button.theme_type_variation = &"IDEDangerButton"
-	close_button = button(top, "Mercado", "Salvar e voltar ao mercado · Escape", ICON_BACK)
+	close_button = button(toolbar, "Mercado", "Salvar e voltar ao mercado · Escape", ICON_BACK)
 	content_host = Control.new()
 	content_host.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_child(content_host)
@@ -184,6 +192,7 @@ func build() -> void:
 	output.collapse_requested.connect(toggle_output)
 	resized.connect(_on_view_resized)
 	output.hide()
+	set_minimized_window(false)
 	update_layout(size.x)
 	# Ctrl+Tab gives keyboard users an exit from CodeEdit's indenting Tab key.
 	code_edit.focus_next = code_edit.get_path_to(run_button)
@@ -208,10 +217,16 @@ func update_layout(width: float) -> void:
 	elif layout_mode_id == LayoutMode.WIDE and width > 1088:
 		next = LayoutMode.WIDE
 	if next == layout_mode_id:
+		_update_toolbar_layout(next)
 		if next == LayoutMode.COMPACT:
 			_update_compact_drawer_geometry()
 		return
+	# Narrow layouts temporarily hide output so the editor remains usable. Keep the
+	# player's output-panel choice to restore it when the editor returns to wide.
+	if layout_mode_id == LayoutMode.WIDE and next != LayoutMode.WIDE:
+		_restore_output_when_wide = output.visible
 	layout_mode_id = next
+	_update_toolbar_layout(next)
 	brand.visible = next == LayoutMode.WIDE
 	sidebar.custom_minimum_size.x = 240 if next == LayoutMode.WIDE else 192
 	workspace.visible = true
@@ -222,11 +237,36 @@ func update_layout(width: float) -> void:
 	if next != LayoutMode.WIDE:
 		output.hide()
 		documents.show()
+	elif _restore_output_when_wide:
+		show_output()
+		_restore_output_when_wide = false
 	horizontal.dragger_visibility = SplitContainer.DRAGGER_HIDDEN_COLLAPSED if next == LayoutMode.COMPACT else SplitContainer.DRAGGER_VISIBLE
-	close_button.text = "Voltar" if next == LayoutMode.COMPACT else "Mercado"
-	explorer_button.text = "Scripts"
 	find_bar.update_layout(next == LayoutMode.COMPACT)
 	output.update_layout(next == LayoutMode.COMPACT)
+
+func _update_toolbar_layout(mode: LayoutMode) -> void:
+	var compact := mode == LayoutMode.COMPACT
+	var very_narrow := compact and size.x < 300.0
+	toolbar.add_theme_constant_override("separation", 4 if compact else 8)
+	explorer_button.text = "" if compact else "Scripts"
+	run_button.text = "" if compact else "Rodar"
+	stop_button.text = "" if compact else "Parar"
+	close_button.text = "" if compact else "Mercado"
+	language_button.visible = not very_narrow
+	close_button.visible = not very_narrow
+	language_button.custom_minimum_size.x = 80.0 if compact else 0.0
+	for control in [window_mode_button, explorer_button, run_button, stop_button, close_button]:
+		control.theme_type_variation = &"IDEIconButton" if compact else &"Button"
+	if not compact:
+		run_button.theme_type_variation = &"IDEPrimaryButton"
+		stop_button.theme_type_variation = &"IDEDangerButton"
+
+func set_minimized_window(value: bool) -> void:
+	_minimized_window = value
+	if window_mode_button == null:
+		return
+	window_mode_button.icon = ICON_MAXIMIZE if value else ICON_MINIMIZE
+	window_mode_button.tooltip_text = "Maximizar editor" if value else "Voltar ao modo minimizado"
 
 func toggle_explorer() -> void:
 	if layout_mode_id == LayoutMode.COMPACT:
@@ -291,7 +331,11 @@ func _on_view_resized() -> void:
 		_short_layout = short_now
 		documents.show()
 		if short_now:
+			_restore_output_when_tall = output.visible
 			output.hide()
+		elif _restore_output_when_tall and layout_mode_id == LayoutMode.WIDE:
+			show_output()
+			_restore_output_when_tall = false
 
 func toggle_output() -> void:
 	if output.visible:
@@ -299,9 +343,17 @@ func toggle_output() -> void:
 		output.hide()
 	else:
 		show_output()
+	if layout_mode_id != LayoutMode.WIDE:
+		_restore_output_when_wide = output.visible
+	if _short_layout:
+		_restore_output_when_tall = output.visible
 	documents.visible = not output.visible if size.y < 480 else true
 
 func show_output() -> void:
 	output.show()
 	vertical.split_offset = _saved_output_offset
+	if layout_mode_id != LayoutMode.WIDE:
+		_restore_output_when_wide = true
+	if _short_layout:
+		_restore_output_when_tall = true
 	documents.visible = size.y >= 480
