@@ -1,6 +1,6 @@
 # Contrato de resolução da UI
 
-AutoMarket usa um canvas lógico de **1920×1080** (16:9) como referência para a interface desktop.
+AutoMarket mantém o canvas lógico padrão de **1152×648** (16:9) como referência para a interface desktop. Superfícies responsivas, como a IDE, adaptam seu próprio overlay sem alterar a resolução global do jogo.
 
 ## Escala
 
@@ -10,7 +10,7 @@ AutoMarket usa um canvas lógico de **1920×1080** (16:9) como referência para 
 
 ## Resoluções verificadas
 
-As verificações da fundação cobrem 1920×1080, 1280×720 e 960×540. A tela inicial deve permanecer utilizável nessas resoluções; os tickets de cada superfície de UI devem adicionar a mesma validação para seus controles essenciais. Layouts menores podem reorganizar conteúdo, mas não podem cortar controles ou texto essencial.
+As verificações da fundação cobrem 1152×648, 1280×720 e 960×540. A tela inicial deve permanecer utilizável nessas resoluções; os tickets de cada superfície de UI devem adicionar a mesma validação para seus controles essenciais. Layouts menores podem reorganizar conteúdo, mas não podem cortar controles ou texto essencial.
 
 ## Como validar
 

@@ -65,7 +65,8 @@ func _sync_layer() -> void:
 	workspace_layer.layer = get_parent().layer if get_parent() is CanvasLayer else 5
 
 func _fit_workspace() -> void:
-	# Compensate canvas_items stretch locally so the IDE stays legible on small windows.
+	# Keep this overlay responsive in physical window space without imposing a
+	# different logical resolution on the rest of the game.
 	var stretch := get_viewport().get_stretch_transform().get_scale()
 	if stretch.x <= 0.0 or stretch.y <= 0.0:
 		return

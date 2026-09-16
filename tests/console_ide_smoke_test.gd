@@ -21,6 +21,19 @@ func _ready() -> void:
 	var usable_size := get_viewport().get_visible_rect().size * get_viewport().get_stretch_transform().get_scale()
 	_check(ide.size.is_equal_approx(usable_size * Vector2(1.0 / 3.0, 1.0 / 2.0)), "Minimized editor uses one third by one half of the viewport")
 	_check(ide.window_mode_button.tooltip_text == "Maximizar editor", "Maximize control has a clear tooltip")
+	var maximize_rect: Rect2 = ide.window_mode_button.get_global_rect()
+	var editor_rect: Rect2 = ide.get_global_rect()
+	var viewport_rect := get_viewport().get_visible_rect()
+	_check(editor_rect.end.is_equal_approx(viewport_rect.end), "Minimized editor stays anchored to the bottom-right corner")
+	_check(
+		ide.window_mode_button.get_parent().get_combined_minimum_size().x <= ide.size.x,
+		"Compact toolbar fits inside the minimized editor (%s <= %s)" % [ide.window_mode_button.get_parent().get_combined_minimum_size().x, ide.size.x],
+	)
+	_check(
+		ide.window_mode_button.is_visible_in_tree()
+		and editor_rect.encloses(maximize_rect),
+		"Maximize control remains visible inside the minimized editor"
+	)
 	ide.window_mode_button.emit_signal("pressed")
 	_check(not menu.is_minimizado(), "Control maximizes the IDE")
 	ide.window_mode_button.emit_signal("pressed")
@@ -78,7 +91,7 @@ func _ready() -> void:
 	_check(InterpreterSystem.is_script_running(first), "Run inicia Python")
 	_check(ide.language_button.disabled, "Language protegido no runtime")
 	_check(ide.status_label.text.contains("DORMINDO"), "Status sleeping")
-	var running_source := ide.get_code_text()
+	var running_source: String = str(ide.get_code_text())
 	menu.set_minimizado(true)
 	menu.set_minimizado(false)
 	_check(InterpreterSystem.is_script_running(first), "Alternar o tamanho nao interrompe o runtime")
@@ -153,6 +166,10 @@ func _ready() -> void:
 			_check(ide.layout_mode_id == ide.LayoutMode.MEDIUM, "Modo médio")
 		if dimensions.x == 640:
 			_check(ide.layout_mode_id == ide.LayoutMode.COMPACT, "Modo compacto")
+			menu.set_minimizado(true)
+			_check(ide.toolbar.get_combined_minimum_size().x <= ide.size.x, "Toolbar minimizada cabe em 640x360")
+			_check(ide.window_mode_button.is_visible_in_tree(), "Maximizar permanece acessivel em 640x360")
+			menu.set_minimizado(false)
 			ide.toggle_explorer()
 			_check(ide.sidebar.visible and ide.drawer_scrim.visible, "Gaveta compacta e fundo acessíveis")
 			_check(ide.workspace.visible, "Editor permanece atrás da gaveta")

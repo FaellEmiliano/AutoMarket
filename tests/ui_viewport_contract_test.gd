@@ -1,7 +1,7 @@
 extends Node
 
 const MainScreenScene = preload("res://scenes/menus/main_screen.tscn")
-const BASE_RESOLUTION := Vector2i(1920, 1080)
+const BASE_RESOLUTION := Vector2i(1152, 648)
 const SUPPORTED_RESOLUTIONS := [
 	BASE_RESOLUTION,
 	Vector2i(1280, 720),
@@ -14,11 +14,11 @@ var _failures: Array[String] = []
 func _ready() -> void:
 	_check(
 		ProjectSettings.get_setting("display/window/size/viewport_width", 0) == BASE_RESOLUTION.x,
-		"O canvas logico deve ter largura 1920.",
+		"O canvas logico deve manter a largura padrao do projeto.",
 	)
 	_check(
 		ProjectSettings.get_setting("display/window/size/viewport_height", 0) == BASE_RESOLUTION.y,
-		"O canvas logico deve ter altura 1080.",
+		"O canvas logico deve manter a altura padrao do projeto.",
 	)
 	_check(
 		ProjectSettings.get_setting("display/window/stretch/mode", "") == "canvas_items",

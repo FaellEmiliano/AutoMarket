@@ -33,6 +33,7 @@ var window_mode_button: Button
 var explorer_button: Button
 var output_button: Button
 var menu_button: MenuButton
+var toolbar: HBoxContainer
 var new_button: Button
 var status_label: Label
 var caret_label: Label
@@ -76,26 +77,26 @@ func build() -> void:
 	var toolbar_panel := PanelContainer.new()
 	toolbar_panel.theme_type_variation = &"IDEToolbar"
 	column.add_child(toolbar_panel)
-	var top := HBoxContainer.new()
-	top.add_theme_constant_override("separation", 8)
-	toolbar_panel.add_child(top)
-	explorer_button = button(top, "Scripts", "Abrir ou fechar scripts e documentação", ICON_EXPLORER)
+	toolbar = HBoxContainer.new()
+	toolbar.add_theme_constant_override("separation", 8)
+	toolbar_panel.add_child(toolbar)
+	window_mode_button = button(toolbar, "", "Maximizar editor", ICON_MAXIMIZE)
+	explorer_button = button(toolbar, "Scripts", "Abrir ou fechar scripts e documentação", ICON_EXPLORER)
 	brand = Label.new()
 	brand.text = "EDITOR DE SCRIPTS"
 	brand.theme_type_variation = &"IDESectionLabel"
 	brand.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	top.add_child(brand)
+	toolbar.add_child(brand)
 	language_button = OptionButton.new()
 	language_button.tooltip_text = "Linguagem do script; alterar não converte o código"
 	language_button.add_item("C-like")
 	language_button.add_item("Python-like")
-	top.add_child(language_button)
-	run_button = button(top, "Rodar", "Executar o script visível · Ctrl+Enter", ICON_RUN)
+	toolbar.add_child(language_button)
+	run_button = button(toolbar, "Rodar", "Executar o script visível · Ctrl+Enter", ICON_RUN)
 	run_button.theme_type_variation = &"IDEPrimaryButton"
-	stop_button = button(top, "Parar", "Interromper o script visível", ICON_STOP)
+	stop_button = button(toolbar, "Parar", "Interromper o script visível", ICON_STOP)
 	stop_button.theme_type_variation = &"IDEDangerButton"
-	close_button = button(top, "Mercado", "Salvar e voltar ao mercado · Escape", ICON_BACK)
-	window_mode_button = button(top, "", "Maximizar editor", ICON_MAXIMIZE)
+	close_button = button(toolbar, "Mercado", "Salvar e voltar ao mercado · Escape", ICON_BACK)
 	content_host = Control.new()
 	content_host.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_child(content_host)
@@ -216,6 +217,7 @@ func update_layout(width: float) -> void:
 	elif layout_mode_id == LayoutMode.WIDE and width > 1088:
 		next = LayoutMode.WIDE
 	if next == layout_mode_id:
+		_update_toolbar_layout(next)
 		if next == LayoutMode.COMPACT:
 			_update_compact_drawer_geometry()
 		return
@@ -224,6 +226,7 @@ func update_layout(width: float) -> void:
 	if layout_mode_id == LayoutMode.WIDE and next != LayoutMode.WIDE:
 		_restore_output_when_wide = output.visible
 	layout_mode_id = next
+	_update_toolbar_layout(next)
 	brand.visible = next == LayoutMode.WIDE
 	sidebar.custom_minimum_size.x = 240 if next == LayoutMode.WIDE else 192
 	workspace.visible = true
@@ -238,10 +241,25 @@ func update_layout(width: float) -> void:
 		show_output()
 		_restore_output_when_wide = false
 	horizontal.dragger_visibility = SplitContainer.DRAGGER_HIDDEN_COLLAPSED if next == LayoutMode.COMPACT else SplitContainer.DRAGGER_VISIBLE
-	close_button.text = "Voltar" if next == LayoutMode.COMPACT else "Mercado"
-	explorer_button.text = "Scripts"
 	find_bar.update_layout(next == LayoutMode.COMPACT)
 	output.update_layout(next == LayoutMode.COMPACT)
+
+func _update_toolbar_layout(mode: LayoutMode) -> void:
+	var compact := mode == LayoutMode.COMPACT
+	var very_narrow := compact and size.x < 300.0
+	toolbar.add_theme_constant_override("separation", 4 if compact else 8)
+	explorer_button.text = "" if compact else "Scripts"
+	run_button.text = "" if compact else "Rodar"
+	stop_button.text = "" if compact else "Parar"
+	close_button.text = "" if compact else "Mercado"
+	language_button.visible = not very_narrow
+	close_button.visible = not very_narrow
+	language_button.custom_minimum_size.x = 80.0 if compact else 0.0
+	for control in [window_mode_button, explorer_button, run_button, stop_button, close_button]:
+		control.theme_type_variation = &"IDEIconButton" if compact else &"Button"
+	if not compact:
+		run_button.theme_type_variation = &"IDEPrimaryButton"
+		stop_button.theme_type_variation = &"IDEDangerButton"
 
 func set_minimized_window(value: bool) -> void:
 	_minimized_window = value
