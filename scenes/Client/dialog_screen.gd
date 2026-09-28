@@ -51,6 +51,7 @@ func _initialize_dialog() -> void:
 	_name.text = dialog_data["title"]
 	_dialog.text = dialog_data["dialog"]
 	_faceset.texture = load(dialog_data["faceset"])
+	EventBus.emit_signal("conversation_message_shown", _name.text, _dialog.text)
 	
 	_dialog.visible_ratio = 0.0
 	_dialog.visible_characters = 0

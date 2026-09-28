@@ -27,3 +27,5 @@ signal send_debug(text)
 signal secret_menu_unlocked()
 
 signal player_notification(message)
+
+signal conversation_message_shown(speaker, text)

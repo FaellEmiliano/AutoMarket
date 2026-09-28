@@ -6,6 +6,7 @@ func _ready() -> void:
 	_test_workspace_documents()
 	_test_legacy_migration()
 	_test_delivery_document()
+	_test_free_documents()
 	_test_language_migration()
 	_test_language_round_trip_is_idempotent()
 	print("SCRIPT_WORKSPACE_SMOKE_TEST_OK")
@@ -14,22 +15,19 @@ func _ready() -> void:
 
 func _test_workspace_documents() -> void:
 	var workspace := ScriptWorkspace.new()
-	assert(workspace.scripts.size() == 1, "Workspace deve iniciar com uma aba.")
+	assert(workspace.scripts.size() == 1, "Workspace deve iniciar somente com Principal.")
 	assert(workspace.get_active_title() == "Principal", "A primeira aba deve ser Principal.")
-	assert(workspace.get_active_script().get("language") == "c_like", "A aba Principal deve iniciar como C-like.")
+	assert(workspace.get_active_source() == "print(\"Hello, World!\")\n", "Principal deve trazer apenas um Hello World Python-like.")
+	assert(not workspace.get_active_source().contains("def main"), "Template inicial não deve exigir def main().")
 
 	var principal_id := workspace.active_script_id
 	workspace.update_active_source("codigo principal")
 
 	var new_id := workspace.create_script()
 	assert(new_id != principal_id, "Nova aba deve receber id diferente.")
-	assert(workspace.get_script_document(new_id).get("language") == "c_like", "Nova aba deve iniciar como C-like.")
+	assert(workspace.get_script_document(new_id).get("language") == "python_like", "Nova aba deve iniciar como Python-like.")
 	workspace.set_active_script(new_id)
-	assert(workspace.get_active_source().contains("int main"), "Nova aba deve iniciar com codigo base.")
-	assert(workspace.set_active_language("python_like"), "Deve permitir selecionar Python-like na aba ativa.")
-	assert(workspace.get_active_script().get("language") == "python_like", "A troca de linguagem deve afetar somente a aba ativa.")
-	assert(not workspace.set_active_language("desconhecida"), "Nao deve aceitar uma linguagem sem backend.")
-	workspace.set_active_language("c_like")
+	assert(workspace.get_active_source() == "print(\"Hello, World!\")\n", "Nova aba deve iniciar com o template Python-like simples.")
 
 	workspace.update_active_source("codigo novo")
 	workspace.set_active_script(principal_id)
@@ -42,8 +40,8 @@ func _test_workspace_documents() -> void:
 	assert(workspace.get_script_document(new_id).get("id") == new_id, "Renomear nao pode alterar o id interno.")
 
 	var serialized := workspace.serialize()
-	assert(serialized.get("version") == 4, "Workspace serializado deve usar a versao 4.")
-	assert(serialized["scripts"][1].get("language") == "c_like", "Serializacao deve preservar a linguagem da aba.")
+	assert(serialized.get("version") == 7, "Workspace serializado deve usar a versao 7.")
+	assert(workspace.get_script_document(new_id).get("language") == "python_like", "Serializacao deve preservar a linguagem Python-like da aba.")
 	var loaded := ScriptWorkspace.new()
 	loaded.deserialize(serialized)
 	assert(loaded.scripts.size() == 2, "Load deve restaurar todas as abas.")
@@ -51,24 +49,35 @@ func _test_workspace_documents() -> void:
 	assert(loaded.active_script_id == new_id, "Load deve restaurar a aba ativa.")
 	assert(loaded.get_active_source() == "codigo novo", "Load deve restaurar o texto da aba ativa.")
 
-	assert(loaded.delete_script(principal_id), "Deve apagar uma aba quando ainda existe outra.")
+	assert(loaded.delete_script(principal_id), "Qualquer arquivo comum deve poder ser apagado.")
 	assert(loaded.active_script_id == new_id, "Apagar outra aba nao pode invalidar a aba ativa.")
-	assert(not loaded.delete_script(new_id), "Nao deve apagar a ultima aba.")
+	assert(not loaded.delete_script(new_id), "O workspace deve preservar ao menos um arquivo.")
 
 func _test_legacy_migration() -> void:
 	var migrated := ScriptWorkspace.new()
 	migrated.deserialize({"script_text": "codigo antigo"})
-	assert(migrated.scripts.size() == 1, "Save antigo deve virar uma aba.")
+	assert(migrated.scripts.size() == 1, "Save antigo deve preservar somente os arquivos existentes.")
 	assert(migrated.get_active_title() == "Principal", "Save antigo deve migrar para Principal.")
 	assert(migrated.get_active_source() == "codigo antigo", "Migracao nao pode perder o codigo antigo.")
-	assert(migrated.get_active_script().get("language") == "c_like", "Save legado com script_text deve migrar para C-like.")
+	assert(migrated.get_active_script().get("language") == "c_like", "Save legado com script_text deve permanecer marcado como C-like.")
+	assert(migrated.is_legacy_script(migrated.active_script_id), "Save legado deve exigir reescrita explícita.")
+
+func _test_free_documents() -> void:
+	var workspace := ScriptWorkspace.new()
+	assert(workspace.scripts.size() == 1, "Workspace novo não deve criar arquivos ocultos por papel.")
+	var arbitrary_id := workspace.create_script("Minha automação", "print(\"livre\")\n")
+	assert(not workspace.is_reserved_script(arbitrary_id), "Arquivo criado pelo jogador não pode receber papel reservado.")
+	workspace.rename_script(arbitrary_id, "Qualquer nome")
+	assert(workspace.delete_script(arbitrary_id), "Arquivo de automação deve poder ser renomeado e apagado livremente.")
 
 func _test_delivery_document() -> void:
 	var workspace := ScriptWorkspace.new()
 	var delivery_id := workspace.ensure_delivery_script()
 	assert(not delivery_id.is_empty(), "Delivery deve receber um id próprio.")
 	assert(workspace.get_script_document(delivery_id).get("title") == "Delivery", "A aba reservada deve se chamar Delivery.")
-	assert(workspace.get_script_document(delivery_id).get("language") == "c_like", "A aba reservada Delivery deve iniciar como C-like.")
+	assert(workspace.get_script_document(delivery_id).get("language") == "python_like", "A aba reservada Delivery deve iniciar como Python-like.")
+	assert(workspace.get_script_document(delivery_id).get("source").contains("get_deliveries()"), "O template Delivery deve usar sintaxe Python-like.")
+	assert(not workspace.get_script_document(delivery_id).get("source").contains("int main"), "O template Delivery não pode conter sintaxe C-like.")
 	workspace.rename_script(delivery_id, "Outro nome")
 	assert(workspace.get_script_document(delivery_id).get("title") == "Delivery", "A aba Delivery não pode ser renomeada.")
 	assert(not workspace.delete_script(delivery_id), "A aba Delivery não pode ser apagada.")
@@ -78,6 +87,7 @@ func _test_delivery_document() -> void:
 	loaded.deserialize(workspace.serialize())
 	assert(loaded.delivery_script_id == delivery_id, "O save deve preservar o id da aba Delivery.")
 	assert(loaded.get_script_document(delivery_id).get("source") == "codigo delivery", "O save deve preservar o código do Delivery.")
+	assert(loaded.get_script_document(delivery_id).get("language") == "python_like", "O save deve preservar a linguagem Python-like do Delivery.")
 
 func _test_language_migration() -> void:
 	var old_document := {
@@ -95,6 +105,7 @@ func _test_language_migration() -> void:
 	migrated.deserialize(old_document)
 	assert(migrated.get_script_document("script_001").get("language") == "c_like", "Documento antigo deve receber C-like.")
 	assert(migrated.get_script_document("script_002").get("language") == "c_like", "Aba reservada antiga de Estoque deve receber C-like.")
+	assert(migrated.get_script_document("script_001").get("source") == "codigo principal", "Migração não pode reescrever código C-like antigo.")
 
 	var existing_language := old_document.duplicate(true)
 	existing_language["scripts"][0]["language"] = "python_like"

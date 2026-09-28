@@ -5,6 +5,8 @@ extends Control
 const TutorialOverlayScene = preload("res://scenes/tutorial/tutorial_overlay.tscn")
 const DebugMenuScene = preload("res://scenes/debug/debug_menu.tscn")
 const DeliveryConfigData = preload("res://data/DeliveryConfig.gd")
+const ConversationHistoryModel = preload("res://systems/ConversationHistory.gd")
+const ActiveExperienceData = preload("res://data/ActiveExperience.gd")
 
 @onready var dinheiro_label: Label = $VBoxContainer/ColorRect/VBoxContainer/Dinheiro
 @onready var dinheiro_panel: NinePatchRect = $VBoxContainer/ColorRect
@@ -25,6 +27,10 @@ const DeliveryConfigData = preload("res://data/DeliveryConfig.gd")
 @onready var notification_panel: PanelContainer = $HUD/NotificationPanel
 @onready var notification_label: Label = $HUD/NotificationPanel/Margin/NotificationLabel
 @onready var notification_timer: Timer = $HUD/NotificationTimer
+@onready var history_button: Button = $HUD/HistoryButton
+@onready var history_panel: PanelContainer = $HUD/HistoryPanel
+@onready var history_text: RichTextLabel = $HUD/HistoryPanel/Margin/Layout/HistoryText
+@onready var history_close_button: Button = $HUD/HistoryPanel/Margin/Layout/Header/CloseButton
 
 var debug_infinite_money := false
 var _debug_click_count := 0
@@ -32,6 +38,7 @@ var _last_debug_click_ms := 0
 var _debug_menu = null
 var _notification_queue: Array[String] = []
 var _current_notification := ""
+var _conversation_history = ConversationHistoryModel.new()
 
 
 func _ready() -> void:
@@ -52,6 +59,7 @@ func _ready() -> void:
 	_update_diamonds(GameManager.diamonds)
 	EventBus.update_money.connect(update_money)
 	EventBus.player_notification.connect(_queue_notification)
+	EventBus.conversation_message_shown.connect(_on_conversation_message_shown)
 	EventBus.secret_menu_unlocked.connect(_on_secret_menu_unlocked)
 	FeatureManager.feature_unlocked.connect(_on_feature_unlocked)
 	GameManager.diamonds_changed.connect(_update_diamonds)
@@ -59,6 +67,8 @@ func _ready() -> void:
 	dinheiro_panel.gui_input.connect(_on_dinheiro_panel_gui_input)
 	delivery_button.pressed.connect(_open_delivery_panel)
 	notification_timer.timeout.connect(_show_next_notification)
+	history_button.pressed.connect(_open_history)
+	history_close_button.pressed.connect(_close_history)
 	_update_debug_hotspot()
 	UpgradeManager.verificar_desbloqueios()
 	EventBus.emit_signal("update_money", 0)
@@ -123,6 +133,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if not event.is_action_pressed("ui_cancel"):
 		return
+	if history_panel.visible:
+		_close_history()
+		get_viewport().set_input_as_handled()
+		return
 	if help_menu.visible or (_debug_menu != null and is_instance_valid(_debug_menu) and _debug_menu.visible):
 		return
 	pause_menu.open_menu()
@@ -133,11 +147,16 @@ func _on_feature_unlocked(_feature_id: String) -> void:
 	Saves.salvar(GameManager.money, GameManager.unlocked_mechanics, GameManager.upgrades)
 
 func _atualizar_estado_mecanicas() -> void:
-	estoque_panel.visible = FeatureManager.has_feature(FeatureManager.FEATURE_STOCK)
-	delivery_panel_button.visible = FeatureManager.has_feature(FeatureManager.FEATURE_DELIVERY)
-	diamond_row.visible = delivery_panel_button.visible or GameManager.diamonds > 0
+	estoque_panel.visible = true
+	shop_menu.visible = ActiveExperienceData.SHOW_UPGRADE_SHOP
+	shop_menu.process_mode = Node.PROCESS_MODE_INHERIT if ActiveExperienceData.SHOW_UPGRADE_SHOP else Node.PROCESS_MODE_DISABLED
+	delivery_panel_button.visible = ActiveExperienceData.SHOW_DELIVERY
+	delivery_panel.visible = ActiveExperienceData.SHOW_DELIVERY and delivery_panel.visible
+	diamond_row.visible = ActiveExperienceData.SHOW_DELIVERY and (delivery_panel_button.visible or GameManager.diamonds > 0)
 
 func _open_delivery_panel() -> void:
+	if not ActiveExperienceData.SHOW_DELIVERY:
+		return
 	if not FeatureManager.has_feature(FeatureManager.FEATURE_DELIVERY):
 		_queue_notification(FeatureManager.locked_message(FeatureManager.FEATURE_DELIVERY))
 		return
@@ -147,10 +166,13 @@ func _open_delivery_panel() -> void:
 
 func _update_diamonds(value: int) -> void:
 	diamond_label.text = "%d / %d" % [value, DeliveryConfigData.MAX_DIAMONDS]
-	diamond_row.visible = FeatureManager.has_feature(FeatureManager.FEATURE_DELIVERY) or value > 0
+	diamond_row.visible = (
+		ActiveExperienceData.SHOW_DELIVERY
+		and (FeatureManager.has_feature(FeatureManager.FEATURE_DELIVERY) or value > 0)
+	)
 
 func _on_game_completed_changed(completed: bool) -> void:
-	if completed:
+	if completed and ActiveExperienceData.SHOW_COMPLETION_FLOW:
 		completion_overlay.open_overlay()
 
 func _queue_notification(message: String) -> void:
@@ -173,7 +195,33 @@ func _show_next_notification() -> void:
 	notification_panel.show()
 	notification_timer.start()
 
+func _on_conversation_message_shown(speaker: String, text: String) -> void:
+	_conversation_history.add_message(speaker, text)
+	if history_panel.visible:
+		_refresh_history_text()
+
+func _open_history() -> void:
+	_refresh_history_text()
+	history_panel.show()
+
+func _close_history() -> void:
+	history_panel.hide()
+
+func _refresh_history_text() -> void:
+	var messages: Array[Dictionary] = _conversation_history.get_messages()
+	if messages.is_empty():
+		history_text.text = "Nenhuma mensagem ainda."
+		return
+
+	var lines: Array[String] = []
+	for message in messages:
+		lines.append("%s:\n%s" % [message["speaker"], message["text"]])
+	history_text.text = "\n\n".join(lines)
+	history_text.scroll_to_line(maxi(history_text.get_line_count() - 1, 0))
+
 func _instanciar_tutorial_se_necessario() -> void:
+	if not ActiveExperienceData.SHOW_LEGACY_TUTORIAL:
+		return
 	var tutorial_data = Saves.get_tutorial_data()
 	if tutorial_data.get("completed", false):
 		return

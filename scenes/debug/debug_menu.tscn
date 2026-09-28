@@ -94,11 +94,13 @@ text = "+1000 dinheiro"
 
 [node name="UnlockFeatures" type="Button" parent="Panel/Margin/Content/MoneyRow"]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Liberar features"
 
 [node name="DeliveryDebugRow" type="HBoxContainer" parent="Panel/Margin/Content"]
+visible = false
 layout_mode = 2
 
 [node name="AddDiamond" type="Button" parent="Panel/Margin/Content/DeliveryDebugRow"]
@@ -130,24 +132,28 @@ columns = 2
 
 [node name="SpawnSum" type="Button" parent="Panel/Margin/Content/ClientGrid"]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Soma"
 
 [node name="SpawnCart" type="Button" parent="Panel/Margin/Content/ClientGrid"]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Carrinho"
 
 [node name="SpawnGolden" type="Button" parent="Panel/Margin/Content/ClientGrid"]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Cliente de ouro"
 
 [node name="SpawnChange" type="Button" parent="Panel/Margin/Content/ClientGrid"]
 unique_name_in_owner = true
+visible = false
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Troco"

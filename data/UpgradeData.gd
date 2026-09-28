@@ -12,6 +12,7 @@ const UPGRADES = {
 		"efeito": {"tipo": "reward_multiplier", "valor": 0.2}
 	},
 	"lang_if": {
+		"retired": true,
 		"nome": "Aprender if()",
 		"categoria": "linguagem",
 		"descricao": "Libera decisões no código. Compras acima de R$50 recebem 10% de desconto",
@@ -21,6 +22,7 @@ const UPGRADES = {
 		"efeito": {"tipo": "unlock_feature", "feature": "if"}
 	},
 	"lang_while": {
+		"retired": true,
 		"nome": "Aprender while()",
 		"categoria": "linguagem",
 		"descricao": "Clientes podem mandar vários preços; -1 avisa que a lista acabou",
@@ -48,6 +50,7 @@ const UPGRADES = {
 		"efeito": {"tipo": "reward_multiplier", "valor": 0.25}
 	},
 	"lang_sensor": {
+		"retired": true,
 		"nome": "Aprender sensor()",
 		"categoria": "linguagem",
 		"descricao": "Permite o código olhar se tem cliente esperando",
@@ -63,7 +66,7 @@ const UPGRADES = {
 		"descricao": "Clientes aparecem a cada 2.5s a 4.5s",
 		"preco": 100,
 		"dinheiro_minimo": 520,
-		"requer": ["marketing_1", "lang_sensor"],
+		"requer": ["marketing_1"],
 		"efeito": {"tipo": "spawn_delay", "min": 2.5, "max": 4.5}
 	},
 	"gameplay_change": {
@@ -72,14 +75,15 @@ const UPGRADES = {
 		"descricao": "Clientes entregam um valor acima do total e esperam o troco correto",
 		"preco": 180,
 		"dinheiro_minimo": 680,
-		"requer": ["lang_sensor"],
+		"requer": [],
 		"help_topic": "change_client",
 		"efeito": {"tipo": "unlock_feature", "feature": "change"}
 	},
 	"gameplay_stock": {
+		"retired": true,
 		"nome": "Abrir estoque",
 		"categoria": "gameplay",
-		"descricao": "Clientes pedem produtos com quantidade. Também libera estoque e await()",
+		"descricao": "Clientes pedem produtos com quantidade. Também libera estoque e wait()",
 		"preco": 240,
 		"dinheiro_minimo": 860,
 		"requer": ["gameplay_change"],
@@ -92,7 +96,7 @@ const UPGRADES = {
 		"descricao": "+30% adicional e cumulativo na recompensa de cada atendimento",
 		"preco": 150,
 		"dinheiro_minimo": 1150,
-		"requer": ["premium_2", "gameplay_stock"],
+		"requer": ["premium_2"],
 		"efeito": {"tipo": "reward_multiplier", "valor": 0.3}
 	},
 	"marketing_3": {
@@ -101,7 +105,7 @@ const UPGRADES = {
 		"descricao": "Clientes aparecem a cada 1s a 3s",
 		"preco": 200,
 		"dinheiro_minimo": 1500,
-		"requer": ["marketing_2", "gameplay_stock"],
+		"requer": ["marketing_2"],
 		"efeito": {"tipo": "spawn_delay", "min": 1.0, "max": 3.0}
 	},
 	"delivery_online": {

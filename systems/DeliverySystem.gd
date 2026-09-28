@@ -15,6 +15,7 @@ enum State {
 const Config = preload("res://data/DeliveryConfig.gd")
 const DeliveryValidator = preload("res://systems/DeliveryProgramValidator.gd")
 const ProgramFacts = preload("res://interpreter/analysis/delivery_program_facts.gd")
+const ActiveExperienceData = preload("res://data/ActiveExperience.gd")
 
 var state: State = State.LOCKED
 var next_report_id := 1
@@ -39,6 +40,8 @@ func _ready() -> void:
 
 
 func _process(_delta: float) -> void:
+	if not ActiveExperienceData.SHOW_DELIVERY:
+		return
 	if GameManager.game_completed:
 		if state != State.COMPLETED:
 			mark_completed(false)
@@ -63,7 +66,7 @@ func unlock(emit_feedback := true) -> void:
 
 
 func _on_feature_unlocked(feature_id: String) -> void:
-	if feature_id != FeatureManager.FEATURE_DELIVERY:
+	if not ActiveExperienceData.SHOW_DELIVERY or feature_id != FeatureManager.FEATURE_DELIVERY:
 		return
 	_activate(not _suppress_unlock_feedback, not _suppress_unlock_feedback)
 

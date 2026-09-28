@@ -1,14 +1,28 @@
 class_name StockItem
 
+var code : int
 var name : String
 var quantity : int
-var price : float
+var sale_price : float
+var acquisition_cost : float
 var max_quantity : int
+var lot_size : int
+var minimum_stock : int
+var target_stock : int
 var icon_path : String
 
-func _init(item_name : String, qtd : int, item_price : float, item_max_quantity := 10, item_icon_path := ""):
-	name = item_name
+var price : float:
+	get:
+		return sale_price
+
+func _init(item_code: int, data: Dictionary, qtd := 0):
+	code = item_code
+	name = str(data["nome"])
 	quantity = qtd
-	price = item_price
-	max_quantity = item_max_quantity
-	icon_path = item_icon_path
+	sale_price = float(data["preco"])
+	acquisition_cost = float(data["custo"])
+	max_quantity = int(data["capacidade"])
+	lot_size = int(data["lote"])
+	minimum_stock = int(data["minimo"])
+	target_stock = int(data["alvo"])
+	icon_path = str(data["imagem"])

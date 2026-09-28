@@ -11,6 +11,7 @@ const UpgradeData = preload("res://data/UpgradeData.gd")
 @onready var title_label: Label = %TitleLabel
 @onready var status_label: Label = %StatusLabel
 @onready var body_label: RichTextLabel = %BodyLabel
+@onready var article_scroll: ScrollContainer = %ArticleScroll
 @onready var spoiler_button: Button = %SpoilerButton
 @onready var hint_panel: PanelContainer = %HintPanel
 @onready var hint_label: RichTextLabel = %HintLabel
@@ -62,7 +63,7 @@ func _rebuild_topic_list() -> void:
 
 	var topics_by_category := {}
 	var category_order := []
-	for topic in HelpTopicsData.TOPICS:
+	for topic in HelpProgressData.get_active_topics(HelpTopicsData.TOPICS):
 		var topic_category := str(topic.get("category", "Outros"))
 		if not topics_by_category.has(topic_category):
 			topics_by_category[topic_category] = []
@@ -108,7 +109,7 @@ func _show_topic(topic_id: String) -> void:
 		_current_hint = ""
 		spoiler_button.visible = false
 		_hide_hint()
-		body_label.scroll_to_line(0)
+		_reset_article_scroll()
 		return
 
 	status_label.text = "LIBERADO"
@@ -118,7 +119,7 @@ func _show_topic(topic_id: String) -> void:
 	_current_hint = str(topic.get("hint", ""))
 	spoiler_button.visible = not _current_hint.is_empty()
 	_hide_hint()
-	body_label.scroll_to_line(0)
+	_reset_article_scroll()
 
 func _toggle_hint() -> void:
 	if hint_panel.visible:
@@ -136,7 +137,7 @@ func _hide_hint() -> void:
 
 func _find_topic(topic_id: String) -> Dictionary:
 	for topic in HelpTopicsData.TOPICS:
-		if str(topic.get("id", "")) == topic_id:
+		if HelpProgressData.is_topic_active(topic) and str(topic.get("id", "")) == topic_id:
 			return topic
 	return {}
 
@@ -180,7 +181,14 @@ func _refresh_button_selection() -> void:
 func _update_progress_label() -> void:
 	if progress_label == null:
 		return
-	progress_label.text = "PÁGINAS %d/%d" % [_visible_topics.size(), HelpTopicsData.TOPICS.size()]
+	progress_label.text = "GUIAS %d/%d" % [
+		_visible_topics.size(),
+		HelpProgressData.get_active_topics(HelpTopicsData.TOPICS).size(),
+	]
+
+func _reset_article_scroll() -> void:
+	article_scroll.scroll_vertical = 0
+	article_scroll.set_deferred("scroll_vertical", 0)
 
 func _get_locked_body(topic: Dictionary) -> String:
 	return """[b]Ainda não chegou essa parte[/b]

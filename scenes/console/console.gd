@@ -1,5 +1,7 @@
 extends "res://scenes/console/components/ide_workspace_view.gd"
 
+const ActiveExperienceData = preload("res://data/ActiveExperience.gd")
+
 signal close_requested
 signal window_mode_requested(minimized: bool)
 var context
@@ -30,10 +32,10 @@ func _ready() -> void:
 	new_button.pressed.connect(_on_new_tab_pressed)
 	run_button.pressed.connect(_on_run_pressed)
 	stop_button.pressed.connect(_on_stop_pressed)
+	run_all_button.pressed.connect(_on_run_all_pressed)
 	close_button.pressed.connect(func(): close_requested.emit())
 	window_mode_button.pressed.connect(func(): window_mode_requested.emit(not _minimized_window))
 	output.stop_all_requested.connect(InterpreterSystem.stop_all)
-	language_button.item_selected.connect(_on_language_selected)
 	_setup_dialogs()
 	_sync_documents()
 
@@ -62,6 +64,8 @@ func _setup_dialogs() -> void:
 	add_child(_delete_dialog)
 
 func open_document(kind: String, id: String) -> void:
+	if kind == "script" and _is_hidden_legacy_script(id):
+		return
 	empty_state.hide()
 	if kind == "help":
 		if not documentation.show_topic(id):
@@ -97,6 +101,7 @@ func open_document(kind: String, id: String) -> void:
 		code_edit.grab_focus()
 
 func _sync_documents() -> void:
+	_select_visible_active_script()
 	explorer.refresh_scripts()
 	var id := str(InterpreterSystem.get_active_script().id)
 	if _loaded_id != id:
@@ -108,11 +113,22 @@ func _sync_documents() -> void:
 		tabs.active_id = id
 	elif code_edit.text != InterpreterSystem.get_active_source():
 		_load_active_script_into_editor()
-	else:
-		_refresh_language_selector()
 	tabs.refresh()
 	explorer.select_document(tabs.active_kind, tabs.active_id)
 	_update_status()
+
+func _select_visible_active_script() -> void:
+	var active_id := str(InterpreterSystem.get_active_script().get("id", ""))
+	if not _is_hidden_legacy_script(active_id):
+		return
+	for document in InterpreterSystem.get_scripts():
+		var document_id := str(document.get("id", ""))
+		if not _is_hidden_legacy_script(document_id):
+			InterpreterSystem.set_active_script(document_id)
+			return
+
+func _is_hidden_legacy_script(id: String) -> bool:
+	return not ActiveExperienceData.SHOW_DELIVERY and id == InterpreterSystem.get_delivery_script_id()
 
 func _load_active_script_into_editor() -> void:
 	_loading = true
@@ -120,7 +136,6 @@ func _load_active_script_into_editor() -> void:
 	if code_edit.text != InterpreterSystem.get_active_source():
 		code_edit.text = InterpreterSystem.get_active_source()
 	_loading = false
-	_refresh_language_selector()
 	if _caret_by_script.has(_loaded_id):
 		var position: Vector3 = _caret_by_script[_loaded_id]
 		code_edit.set_caret_line(int(position.x))
@@ -156,22 +171,9 @@ func _on_code_text_changed() -> void:
 	_save_editor_to_active_script()
 	find_bar.refresh()
 
-func _refresh_language_selector() -> void:
-	var language := str(InterpreterSystem.get_active_script().get("language", "c_like"))
-	language_button.select(1 if language == "python_like" else 0)
-	if code_edit.language_id != language or code_edit.profile.is_empty():
-		code_edit.configure_for_language(language)
-
-func _on_language_selected(index: int) -> void:
-	if tabs.active_kind != "script" or InterpreterSystem.is_script_running(_loaded_id):
-		_refresh_language_selector()
-		return
-	_save_editor_to_active_script()
-	InterpreterSystem.set_active_script_language("python_like" if index == 1 else "c_like")
-	Saves.solicitar_save("script_linguagem_alterada")
-
 func _on_run_pressed() -> void:
-	if tabs.active_kind != "script" or InterpreterSystem.is_script_running(_loaded_id):
+	if tabs.active_kind != "script" or InterpreterSystem.is_script_running(_loaded_id) \
+			or InterpreterSystem.is_legacy_script(_loaded_id):
 		return
 	_save_editor_to_active_script()
 	code_edit.clear_diagnostics()
@@ -184,21 +186,37 @@ func _on_stop_pressed() -> void:
 	if tabs.active_kind == "script":
 		InterpreterSystem.stop_active_script()
 
+func _on_run_all_pressed() -> void:
+	_save_editor_to_active_script()
+	code_edit.clear_diagnostics()
+	show_output()
+	InterpreterSystem.start_all_scripts(context)
+	Saves.solicitar_save("automacao_integrada_executada")
+	_update_status()
+
 func _update_status() -> void:
 	var running := InterpreterSystem.is_script_running(_loaded_id)
 	var help_active: bool = tabs.active_kind == "help"
 	var script_active: bool = tabs.active_kind == "script"
-	run_button.disabled = not script_active or running
+	var legacy_active := script_active and InterpreterSystem.is_legacy_script(_loaded_id)
+	run_button.disabled = not script_active or running or legacy_active
 	stop_button.disabled = not script_active or not running
-	language_button.disabled = not script_active or running
+	var runnable_count := 0
+	for script in InterpreterSystem.get_scripts():
+		if not InterpreterSystem.is_legacy_script(str(script.get("id", ""))):
+			runnable_count += 1
+	var running_count := InterpreterSystem.get_running_runtimes().size()
+	run_all_button.disabled = runnable_count == 0 or running_count >= runnable_count
 	menu_button.disabled = not script_active
 	output.stop_all_button.disabled = InterpreterSystem.get_running_runtimes().is_empty()
 	var state := str(InterpreterSystem.get_runtime_by_script_id(_loaded_id).get("status", "stopped"))
 	var runtime := InterpreterSystem.get_runtime_by_script_id(_loaded_id)
 	if help_active:
 		status_label.text = "Documentação · somente leitura"
+	elif legacy_active:
+		status_label.text = "C-like legado · reescreva em Python-like para executar"
 	elif script_active:
-		status_label.text = "%s   ·   %s" % [language_button.get_item_text(language_button.selected), Explorer.STATES.get(state, "PARADO")]
+		status_label.text = "Python-like   ·   %s" % Explorer.STATES.get(state, "PARADO")
 	else:
 		status_label.text = "Nenhum documento aberto"
 	status_label.theme_type_variation = &"Label"
@@ -236,7 +254,7 @@ func context_updt(ctx) -> void:
 	context = ctx.env_context
 
 func _on_progress_changed(_id: String) -> void:
-	if FeatureManager.has_feature(FeatureManager.FEATURE_DELIVERY):
+	if ActiveExperienceData.SHOW_DELIVERY and FeatureManager.has_feature(FeatureManager.FEATURE_DELIVERY):
 		InterpreterSystem.ensure_delivery_script()
 	explorer.refresh_topics()
 	_sync_documents()

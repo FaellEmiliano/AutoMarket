@@ -3,8 +3,8 @@ extends Control
 @onready var toggle_button: Button = $ColorRect2/Button
 @onready var workspace_layer: CanvasLayer = $WorkspaceLayer
 @onready var console = $WorkspaceLayer/Console
-var aberto := false
-var minimizado := false
+enum WindowState { CLOSED, DOCKED, FULLSCREEN }
+var window_state := WindowState.CLOSED
 var tutorial_fullscreen := false
 
 func _ready() -> void:
@@ -19,39 +19,50 @@ func get_console_editor() -> Control:
 	return console
 
 func set_aberto(value: bool) -> void:
-	if not value and aberto:
+	_set_window_state(
+		(WindowState.FULLSCREEN if tutorial_fullscreen else WindowState.DOCKED)
+		if value else WindowState.CLOSED
+	)
+
+func _set_window_state(next_state: WindowState) -> void:
+	if next_state == window_state:
+		return
+	if next_state == WindowState.CLOSED and window_state != WindowState.CLOSED:
 		console.persist_source()
-	aberto = value
-	if value:
-		set_minimizado(not tutorial_fullscreen)
-	console.visible = value
+	window_state = next_state
+	var open := window_state != WindowState.CLOSED
+	console.visible = open
+	console.set_minimized_window(window_state == WindowState.DOCKED)
 	if StudentIdentity.has_method("set_editor_mode"):
-		StudentIdentity.set_editor_mode(value)
+		StudentIdentity.set_editor_mode(open)
 	_fit_workspace()
-	toggle_button.set_pressed_no_signal(value)
-	$ColorRect2.visible = not value
-	if value:
+	toggle_button.set_pressed_no_signal(open)
+	$ColorRect2.visible = not open
+	if open:
 		console._sync_documents()
 		if console.tabs.active_kind == "script":
 			console.code_edit.grab_focus()
 	else:
-		console.code_edit.release_focus()
+		get_viewport().gui_release_focus()
 
 func set_minimizado(value: bool) -> void:
-	minimizado = value
-	console.set_minimized_window(value)
-	_fit_workspace()
+	if window_state == WindowState.CLOSED:
+		return
+	_set_window_state(WindowState.DOCKED if value else WindowState.FULLSCREEN)
 
 func is_minimizado() -> bool:
-	return minimizado
+	return window_state == WindowState.DOCKED
 
 func set_tutorial_fullscreen(value: bool) -> void:
 	tutorial_fullscreen = value
-	if aberto:
+	if is_aberto():
 		set_minimizado(not value)
 
 func is_aberto() -> bool:
-	return aberto
+	return window_state != WindowState.CLOSED
+
+func get_window_state() -> WindowState:
+	return window_state
 
 func _on_button_toggled(value: bool) -> void:
 	set_aberto(value)
@@ -70,14 +81,21 @@ func _fit_workspace() -> void:
 	var stretch := get_viewport().get_stretch_transform().get_scale()
 	if stretch.x <= 0.0 or stretch.y <= 0.0:
 		return
-	var usable_size := get_viewport().get_visible_rect().size * stretch
+	var usable_size := Vector2(get_window().size)
 	var workspace_size := usable_size
 	var workspace_position := Vector2.ZERO
-	if minimizado:
-		workspace_size = usable_size * Vector2(1.0 / 3.0, 1.0 / 2.0)
+	if window_state == WindowState.DOCKED:
+		workspace_size = docked_size_for(usable_size)
 		workspace_position = (usable_size - workspace_size) / stretch
 	console.set_anchors_preset(Control.PRESET_TOP_LEFT)
 	console.position = workspace_position
 	console.scale = Vector2.ONE / stretch
 	console.size = workspace_size
 	console.update_layout(workspace_size.x)
+
+func docked_size_for(usable_size: Vector2) -> Vector2:
+	var desired := usable_size * Vector2(0.45, 0.60)
+	return Vector2(
+		clampf(desired.x, minf(520.0, usable_size.x), usable_size.x),
+		clampf(desired.y, minf(380.0, usable_size.y), usable_size.y)
+	)

@@ -1,5 +1,7 @@
 extends Node
 
+signal sale_completed(sale: Dictionary)
+
 var active_client = null
 var active_challenge = null
 var active_inputs: Array = []
@@ -20,7 +22,7 @@ func start_transaction(client, challenge) -> bool:
 
 	active_client = client
 	active_challenge = challenge
-	active_inputs = challenge.env_context.inputs.duplicate()
+	active_inputs = challenge.env_context.inputs.duplicate(true)
 	input_cursor = 0
 	pending_result = false
 	transaction_closing = false
@@ -44,6 +46,8 @@ func next_input() -> Variant:
 
 	var value = active_inputs[input_cursor]
 	input_cursor += 1
+	if value is Dictionary or value is Array:
+		return value.duplicate(true)
 	return value
 
 
@@ -59,7 +63,7 @@ func submit(args: Array) -> bool:
 	var valores = _normalize_values(args)
 	var correto = false if secret_menu_cheat else _validate_values(valores)
 	if correto and active_challenge.requires_stock:
-		correto = StockSystem.consume_items(active_challenge.requested_items)
+		correto = StockSystem.consume_items(active_challenge.requested_items, false)
 	pending_result = correto
 	transaction_closing = true
 	SensorSystem.set_sensor("cliente_na_tela", false)
@@ -80,6 +84,17 @@ func _finish_transaction() -> void:
 		return
 
 	var result = pending_result
+	var completed_challenge = active_challenge
+	var sale := {}
+	if result and bool(completed_challenge.requires_stock):
+		sale = {
+			"cart": completed_challenge.cart.duplicate(true),
+			"prices": completed_challenge.price_snapshot.duplicate(true),
+			"total": float(completed_challenge.expected_output[0]),
+			"discount": bool(completed_challenge.applies_discount),
+			"payment": float(completed_challenge.payment),
+			"change": float(completed_challenge.order.change) if completed_challenge.order != null else 0.0
+		}
 	active_client = null
 	active_challenge = null
 	active_inputs.clear()
@@ -89,6 +104,9 @@ func _finish_transaction() -> void:
 
 	SensorSystem.set_sensor("atendimento_em_andamento", false)
 	EventBus.emit_signal("end_client", result)
+	if not sale.is_empty():
+		sale_completed.emit(sale.duplicate(true))
+		Saves.solicitar_save("venda_concluida")
 
 
 func _normalize_values(args: Array) -> Array:

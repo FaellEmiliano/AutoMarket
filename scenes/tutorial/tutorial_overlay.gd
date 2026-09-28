@@ -8,12 +8,12 @@ extends CanvasLayer
 const SCRIPT_MENU_HIGHLIGHT_Z_INDEX := 30
 const SHOP_MENU_HIGHLIGHT_Z_INDEX := 30
 const SCRIPT_MENU_HIGHLIGHT_FIRST_STEP := 1
-const SCRIPT_MENU_HIGHLIGHT_LAST_STEP := 8
-const SHOP_MENU_HIGHLIGHT_STEP := 8
+const SCRIPT_MENU_HIGHLIGHT_LAST_STEP := 3
+const SHOP_MENU_HIGHLIGHT_STEP := -1
 const SCRIPT_MENU_HIGHLIGHT_LAYER_OFFSET := 1
 const TUTORIAL_PANEL_LAYER_OFFSET := 2
-const EXECUTION_AUTO_ADVANCE_STEPS := [3, 6, 7]
-const FINAL_STEP := 9
+const EXECUTION_AUTO_ADVANCE_STEPS := []
+const FINAL_STEP := 3
 
 var game_ref: Node = null
 var client_spawner: Node = null
@@ -47,8 +47,6 @@ func _ready() -> void:
 		EventBus.end_client.connect(_on_end_client)
 
 	var finished := Callable(self, "_on_execution_finished")
-	if InterpreterSystem.interpretador != null and not InterpreterSystem.interpretador.is_connected("execution_finished", finished):
-		InterpreterSystem.interpretador.connect("execution_finished", finished)
 	if not InterpreterSystem.is_connected("execution_stopped", finished):
 		InterpreterSystem.connect("execution_stopped", finished)
 
@@ -108,41 +106,16 @@ func _enter_step(step: int) -> void:
 	match current_step:
 		0:
 			_call_if_exists(client_spawner, "bloquear_spawn")
-			_set_text("Bem-vindo. Vou te mostrar o básico rapidinho, sem enrolar.")
+			_set_text("Bem-vindo ao Mercado Automatizado. Os produtos usam códigos, e você pode organizar toda a automação em um ou vários arquivos livres.")
 		1:
-			_set_text("A ideia é automatizar o mercado. Primeiro, abre a tela de script.")
-			if script_menu != null and script_menu.has_method("is_aberto") and script_menu.call("is_aberto"):
-				_advance_step()
-		2:
-			_call_if_exists(client_spawner, "bloquear_spawn")
 			_call_if_exists(script_menu, "set_aberto", [true])
-			_set_text("É aqui que você vai passar boa parte do jogo. Vamos começar com um código bem simples.")
+			_set_text("Em qualquer arquivo, input() entrega um carrinho {código: quantidade}. Consulte tabela_produtos() e use send() para finalizar a venda.")
+		2:
+			_call_if_exists(script_menu, "set_aberto", [true])
+			_set_text("Qualquer arquivo também pode consultar get_stock(), get_budget() e o catálogo. buy_stock() compra lotes inteiros de forma atômica, respeitando capacidade e orçamento.")
 		3:
 			_call_if_exists(script_menu, "set_aberto", [true])
-			_set_code_text("int main(){\n    print(\"Ola mundo\");\n}")
-			_set_text("A linguagem parece C. Roda esse código para ver se está tudo respondendo.")
-		4:
-			_set_text("Erros e prints aparecem ali embaixo, no retorno do sistema.")
-		5:
-			_call_if_exists(client_spawner, "bloquear_spawn")
-			if not _tutorial_client_spawned:
-				_tutorial_client_spawned = true
-				_call_if_exists(client_spawner, "spawnar_cliente_tutorial")
-			_set_text("Para atender cliente, você vai usar bastante duas funções: input() e send().")
-		6:
-			_call_if_exists(script_menu, "set_aberto", [true])
-			_set_code_text("int main(){\n    float a = input();\n	print(a);}")
-			_set_text("input() pega um valor do cliente. Chamou uma vez, pegou um valor. Chamou de novo, pega o próximo.")
-		7:
-			_call_if_exists(script_menu, "set_aberto", [true])
-			_set_code_text("int main(){\n    float a = 99.99;\n		print(a);\n		send(a);}")
-			_set_text("send() manda a resposta. Se o número estiver certo, a venda fecha. Se não, o cliente vai embora.")
-		8:
-			_call_if_exists(shop_menu, "set_aberto", [true])
-			_call_if_exists(script_menu, "set_aberto", [false])
-			_set_text("No menu de melhorias você compra coisas novas: mais lucro, mais clientes e novas regras para o código.")
-		9:
-			_set_text("Pronto. Agora tenta deixar a loja rodando sozinha.")
+			_set_text("Use Rodar todos quando quiser manter vários arquivos ativos. Você também pode reunir toda a automação em um único script; wait() evita travar o jogo.")
 
 func _advance_step() -> void:
 	_enter_step(current_step + 1)
@@ -151,8 +124,7 @@ func _on_next_pressed() -> void:
 	_advance_step()
 
 func _on_script_menu_toggled(toggled_on: bool) -> void:
-	if current_step == 1 and toggled_on:
-		_advance_step()
+	pass
 
 func _on_execution_finished() -> void:
 	if current_step in EXECUTION_AUTO_ADVANCE_STEPS:

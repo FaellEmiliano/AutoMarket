@@ -1,5 +1,105 @@
 extends Node
 
+signal integrated_challenge_progress(progress: Dictionary)
+signal integrated_challenge_completed(progress: Dictionary)
+
+const ProductCatalogData = preload("res://data/ProductCatalog.gd")
+const INTEGRATED_CHALLENGE_ID := "mercado_automatizado"
+const REQUIRED_VALID_SALES := 3
+const RECOVERY_WINDOW_SALES := 2
+
+var integrated_progress := {
+	"id": INTEGRATED_CHALLENGE_ID,
+	"completed": false,
+	"valid_sales": 0,
+	"script_purchases": 0,
+	"recoveries": 0
+}
+var _pending_recovery_codes := {}
+
+func _ready() -> void:
+	if not TransactionManager.sale_completed.is_connected(_on_integrated_sale_completed):
+		TransactionManager.sale_completed.connect(_on_integrated_sale_completed)
+	if not StockSystem.stock_purchase_completed.is_connected(_on_stock_purchase_completed):
+		StockSystem.stock_purchase_completed.connect(_on_stock_purchase_completed)
+
+func get_integrated_challenge_status() -> Dictionary:
+	var result := integrated_progress.duplicate(true)
+	result["title"] = "Mercado Automatizado"
+	result["required_valid_sales"] = REQUIRED_VALID_SALES
+	result["pending_recovery_codes"] = _pending_recovery_codes.keys()
+	return result
+
+func get_save_data() -> Dictionary:
+	return integrated_progress.duplicate(true)
+
+func load_save_data(data: Dictionary) -> void:
+	integrated_progress = {
+		"id": INTEGRATED_CHALLENGE_ID,
+		"completed": bool(data.get("completed", false)),
+		"valid_sales": maxi(0, int(data.get("valid_sales", 0))),
+		"script_purchases": maxi(0, int(data.get("script_purchases", 0))),
+		"recoveries": maxi(0, int(data.get("recoveries", 0)))
+	}
+	_pending_recovery_codes.clear()
+
+func _on_integrated_sale_completed(_sale: Dictionary) -> void:
+	if bool(integrated_progress.get("completed", false)):
+		return
+	if not _automation_is_running():
+		return
+	integrated_progress["valid_sales"] = int(integrated_progress["valid_sales"]) + 1
+	var current_sale := int(integrated_progress["valid_sales"])
+	for code in _pending_recovery_codes.keys():
+		if current_sale > int(_pending_recovery_codes[code]):
+			_pending_recovery_codes.erase(code)
+	var stock := StockSystem.get_stock_snapshot()
+	for code in ProductCatalogData.PRODUCTS:
+		var minimum := int(ProductCatalogData.PRODUCTS[code].get("minimo", 0))
+		if int(stock.get(code, 0)) < minimum:
+			_pending_recovery_codes[code] = current_sale + RECOVERY_WINDOW_SALES
+	_emit_integrated_progress()
+
+func _on_stock_purchase_completed(event: Dictionary) -> void:
+	if bool(integrated_progress.get("completed", false)) or str(event.get("source", "")) != "script":
+		return
+	integrated_progress["script_purchases"] = int(integrated_progress["script_purchases"]) + 1
+	var after: Dictionary = event.get("stock_after", {})
+	var before: Dictionary = event.get("stock_before", {})
+	var recovered := false
+	# O estoque pode reagir logo após send(), antes de o cliente fechar o diálogo e
+	# sale_completed ser emitido. Esse ainda é um efeito da venda válida em curso.
+	if TransactionManager.transaction_closing and TransactionManager.pending_result:
+		for code in ProductCatalogData.PRODUCTS:
+			var minimum := int(ProductCatalogData.PRODUCTS[code].get("minimo", 0))
+			if int(before.get(code, 0)) < minimum and int(after.get(code, 0)) >= minimum:
+				recovered = true
+	for code in _pending_recovery_codes.keys():
+		var minimum := int(ProductCatalogData.PRODUCTS.get(code, {}).get("minimo", 0))
+		if int(after.get(code, 0)) >= minimum:
+			_pending_recovery_codes.erase(code)
+			recovered = true
+	if recovered:
+		integrated_progress["recoveries"] = int(integrated_progress["recoveries"]) + 1
+	_emit_integrated_progress()
+
+func _emit_integrated_progress() -> void:
+	var completed_now := (
+		int(integrated_progress.get("valid_sales", 0)) >= REQUIRED_VALID_SALES
+		and int(integrated_progress.get("script_purchases", 0)) > 0
+		and int(integrated_progress.get("recoveries", 0)) > 0
+		and _automation_is_running()
+	)
+	if completed_now:
+		integrated_progress["completed"] = true
+		integrated_challenge_completed.emit(get_integrated_challenge_status())
+		EventBus.emit_signal("player_notification", "Desafio Mercado Automatizado concluído!")
+	integrated_challenge_progress.emit(get_integrated_challenge_status())
+	Saves.solicitar_save("mercado_automatizado_progresso")
+
+func _automation_is_running() -> bool:
+	return not InterpreterSystem.get_running_runtimes().is_empty()
+
 # ─── Helpers matemáticos ──────────────────────────────────────────────────────
 
 func arredondar(valor, casas):
@@ -12,12 +112,10 @@ func _calcular_total(args) -> float:
 		soma += arg
 	return soma
 
-func _calcular_total_estoque(args) -> float:
+func _calcular_total_carrinho(items: Array) -> float:
 	var total := 0.0
-	var i := 0
-	while i < args.size() - 1:
-		total += float(args[i]) * float(args[i + 1])
-		i += 2
+	for requested in items:
+		total += float(requested.get("unit_price", 0.0)) * int(requested.get("quantity", 0))
 	return total
 
 func _calcular_troco(pagamento: float, total: float) -> float:
@@ -42,7 +140,7 @@ func get_reward(type: String) -> int:
 # ─── Entry point ─────────────────────────────────────────────────────────────
 
 func set_context() -> ChallengeData:
-	return _build_challenge()
+	return _build_challenge({"base": "estoque", "stock_only": true})
 
 # ─── Pipeline de geração ─────────────────────────────────────────────────────
 
@@ -51,9 +149,10 @@ func _build_challenge(options := {}) -> ChallengeData:
 	if challenge == null:
 		return null
 
-	_apply_customer_tier(challenge, options)
-	_apply_discount_modifier(challenge, options)
-	_apply_change_modifier(challenge, options)
+	if not bool(options.get("stock_only", false)):
+		_apply_customer_tier(challenge, options)
+		_apply_discount_modifier(challenge, options)
+		_apply_change_modifier(challenge, options)
 	_finalize_challenge(challenge)
 	return challenge
 
@@ -97,14 +196,12 @@ func _create_stock_base() -> ChallengeData:
 	var challenge = ChallengeData.new()
 	challenge.type = "estoque"
 	challenge.requires_stock = true
-	challenge.requested_items = requested_items
+	challenge.requested_items = requested_items.duplicate(true)
 	for requested in requested_items:
-		for stock_item in StockSystem.get_stock():
-			if stock_item.name == requested.get("name", ""):
-				var quantity = int(requested.get("quantity", 0))
-				challenge.values.append(stock_item.price)
-				challenge.values.append(quantity)
-				break
+		var code := int(requested.get("code", 0))
+		var quantity := int(requested.get("quantity", 0))
+		challenge.cart[code] = quantity
+		challenge.price_snapshot[code] = float(requested.get("unit_price", 0.0))
 	return challenge
 
 func _apply_customer_tier(challenge: ChallengeData, options: Dictionary) -> void:
@@ -127,7 +224,7 @@ func _apply_change_modifier(challenge: ChallengeData, options: Dictionary) -> vo
 		challenge.payment = 1.0
 
 func _finalize_challenge(challenge: ChallengeData) -> void:
-	var bruto = _calcular_total_estoque(challenge.values) if challenge.requires_stock else _calcular_total(challenge.values)
+	var bruto = _calcular_total_carrinho(challenge.requested_items) if challenge.requires_stock else _calcular_total(challenge.values)
 	var total_final = bruto
 	if challenge.applies_discount:
 		total_final = _aplicar_desconto_carrinho(bruto)
@@ -141,10 +238,10 @@ func _finalize_challenge(challenge: ChallengeData) -> void:
 
 	var order = ClientOrder.new()
 	order.total = total_final
-	order.items = challenge.requested_items if challenge.requires_stock else challenge.values.duplicate()
+	order.items = challenge.requested_items.duplicate(true) if challenge.requires_stock else challenge.values.duplicate()
 
-	var inputs = challenge.values.duplicate()
-	if challenge.type == "compra_variavel" or challenge.requires_stock:
+	var inputs = [challenge.cart.duplicate(true)] if challenge.requires_stock else challenge.values.duplicate()
+	if challenge.type == "compra_variavel":
 		inputs.append(-1)
 
 	if challenge.payment > 0:
@@ -204,7 +301,7 @@ func generate_variable_purchase_challenge(item_values: Array = [], apply_discoun
 	return _build_challenge({"base": "compra_variavel", "discount": apply_discount})
 
 func generate_stock_challenge() -> ChallengeData:
-	return _build_challenge({"base": "estoque"})
+	return _build_challenge({"base": "estoque", "stock_only": true})
 
 func generate_change_challenge(apply_discount := false, is_golden := false) -> ChallengeData:
 	return _build_challenge({"change": true, "discount": apply_discount, "golden": is_golden})

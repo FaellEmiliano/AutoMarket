@@ -123,7 +123,7 @@ int main() {
 	print(segundo);
 	await(1);
 }
-""", "Delivery")
+""", "Delivery", null, "c_like")
 	await _wait_frames(3)
 	var runtime := InterpreterSystem.runtime_manager.get_runtime(runtime_id)
 	_check(str(runtime.get("status", "")) == ScriptRuntimeManager.STATUS_SLEEPING, "await() deve suspender apenas o script do Delivery.")
@@ -136,7 +136,7 @@ int main() {
 func _test_delivery_builtins_are_contextual() -> void:
 	_reset_report([1, 2, 3])
 	var other_id := "not_delivery"
-	var runtime_id := InterpreterSystem.runtime_manager.start_script(other_id, "int main(){ int e[3]; e = get_deliveries(); }", "Outro")
+	var runtime_id := InterpreterSystem.runtime_manager.start_script(other_id, "int main(){ int e[3]; e = get_deliveries(); }", "Outro", null, "c_like")
 	var guard := 0
 	while InterpreterSystem.runtime_manager.is_script_running(other_id) and guard < 60:
 		guard += 1
@@ -377,7 +377,7 @@ int main() { print(sem_fim(0)); }
 func _test_parallel_runtime_isolation() -> void:
 	_reset_report([1, 2, 1])
 	var other_id := "parallel_other"
-	InterpreterSystem.runtime_manager.start_script(other_id, "int main(){ while (1) { await(1); } }", "Outro")
+	InterpreterSystem.runtime_manager.start_script(other_id, "int main(){ while (1) { await(1); } }", "Outro", null, "c_like")
 	await _wait_frames(2)
 	_check(InterpreterSystem.runtime_manager.is_script_running(other_id), "Outro script deve rodar em paralelo com o Delivery.")
 	var invalid := await _run_delivery("int main(){ int e[3]; e = get_deliveries(); declare_profit(1); }")
@@ -475,7 +475,7 @@ declare_profit(lucros)
 
 
 func _run_delivery(code: String) -> Dictionary:
-	var runtime_id := InterpreterSystem.runtime_manager.start_script(_delivery_script_id, code, "Delivery")
+	var runtime_id := InterpreterSystem.runtime_manager.start_script(_delivery_script_id, code, "Delivery", null, "c_like")
 	var guard := 0
 	while InterpreterSystem.runtime_manager.is_script_running(_delivery_script_id) and guard < 180:
 		guard += 1

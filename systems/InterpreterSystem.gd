@@ -2,20 +2,24 @@ extends Node
 
 signal execution_stopped
 signal workspace_changed
+signal sale_recorded(sale: Dictionary)
 
 const ScriptWorkspace = preload("res://systems/ScriptWorkspace.gd")
 const ScriptRuntimeManagerScript = preload("res://systems/ScriptRuntimeManager.gd")
+const ActiveExperienceData = preload("res://data/ActiveExperience.gd")
 
-var interpretador := Interpreter.new()
 var runtime_manager := ScriptRuntimeManagerScript.new()
 var current_execution_context = null
 var script_text = ""
 var script_workspace := ScriptWorkspace.new()
+var completed_sale_count := 0
+var last_completed_sale := {}
 
 
 func _ready():
-	add_child(interpretador)
 	add_child(runtime_manager)
+	if not TransactionManager.sale_completed.is_connected(_on_sale_completed):
+		TransactionManager.sale_completed.connect(_on_sale_completed)
 
 
 func execute(code, context):
@@ -24,7 +28,7 @@ func execute(code, context):
 		context = EnvContext.new([], 0, [])
 	current_execution_context = context
 	var script := script_workspace.get_active_script()
-	runtime_manager.start_script(
+	start_script(
 		str(script.get("id", "")),
 		str(code),
 		str(script.get("title", "Sem nome")),
@@ -37,6 +41,9 @@ func execute_active(context) -> void:
 
 func start_script(script_id: String, source: String, script_name: String, context = null,
 		language_id: String = ScriptWorkspace.DEFAULT_LANGUAGE) -> String:
+	if language_id != ScriptWorkspace.DEFAULT_LANGUAGE:
+		_report_legacy_script(script_name)
+		return ""
 	if context == null:
 		context = current_execution_context
 	if context == null:
@@ -51,6 +58,11 @@ func start_active_script(context = null) -> String:
 		context = EnvContext.new([], 0, [])
 	current_execution_context = context
 	var script := script_workspace.get_active_script()
+	if not ActiveExperienceData.SHOW_DELIVERY and str(script.get("id", "")) == script_workspace.delivery_script_id:
+		return ""
+	if str(script.get("language", ScriptWorkspace.DEFAULT_LANGUAGE)) != ScriptWorkspace.DEFAULT_LANGUAGE:
+		_report_legacy_script(str(script.get("title", "Sem nome")))
+		return ""
 	return runtime_manager.start_script(
 		str(script.get("id", "")),
 		str(script.get("source", "")),
@@ -59,6 +71,25 @@ func start_active_script(context = null) -> String:
 		str(script.get("language", ScriptWorkspace.DEFAULT_LANGUAGE))
 	)
 
+func start_integrated_automation(context = null) -> Dictionary:
+	return start_all_scripts(context)
+
+func start_all_scripts(context = null) -> Dictionary:
+	var runtimes := {}
+	for script in script_workspace.scripts:
+		var script_id := str(script.get("id", ""))
+		if script_id.is_empty() or script_workspace.is_legacy_script(script_id):
+			continue
+		if not ActiveExperienceData.SHOW_DELIVERY and script_id == script_workspace.delivery_script_id:
+			continue
+		runtimes[script_id] = start_script(
+			script_id,
+			str(script.get("source", "")),
+			str(script.get("title", "Sem nome")),
+			context,
+			str(script.get("language", ScriptWorkspace.DEFAULT_LANGUAGE))
+		)
+	return runtimes
 
 func stop() -> void:
 	stop_active_script()
@@ -79,6 +110,9 @@ func stop_active_script() -> void:
 func stop_all() -> void:
 	runtime_manager.stop_all()
 	emit_signal("execution_stopped")
+
+func stop_integrated_automation() -> void:
+	stop_all()
 
 
 func is_running(script_id: String = "") -> bool:
@@ -130,12 +164,6 @@ func set_active_script(id: String) -> void:
 func update_active_source(source: String) -> void:
 	set_script_text(source)
 
-func set_active_script_language(language: String) -> bool:
-	var changed := script_workspace.set_active_language(language)
-	if changed:
-		workspace_changed.emit()
-	return changed
-
 func get_active_source() -> String:
 	return get_script_text()
 
@@ -161,6 +189,15 @@ func get_delivery_script_id() -> String:
 func is_reserved_script(id: String) -> bool:
 	return script_workspace.is_reserved_script(id)
 
+func is_legacy_script(id: String) -> bool:
+	return script_workspace.is_legacy_script(id)
+
+func _report_legacy_script(script_name: String) -> void:
+	EventBus.emit_signal(
+		"send_debug",
+		"[%s] Script C-like legado preservado. Reescreva-o em Python-like para executar." % script_name
+	)
+
 func get_script_workspace_data() -> Dictionary:
 	return script_workspace.serialize()
 
@@ -176,6 +213,11 @@ func load_save_data(data: Dictionary) -> void:
 	script_workspace.deserialize(data)
 	script_text = script_workspace.get_active_source()
 	workspace_changed.emit()
+
+func _on_sale_completed(sale: Dictionary) -> void:
+	last_completed_sale = sale.duplicate(true)
+	completed_sale_count += 1
+	sale_recorded.emit(last_completed_sale.duplicate(true))
 
 func duplicate_script(id: String) -> String:
 	var duplicate_id := script_workspace.duplicate_script(id)

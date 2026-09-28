@@ -4,7 +4,9 @@ signal save_import_finished(slot: int, ok: bool, message: String)
 
 const LEGACY_SAVE_PATH = "user://save.json"
 const SAVE_SLOT_PATH = "user://save_slot_%d.json"
-const SAVE_VERSION = 4
+const SAVE_VERSION = 5
+const INITIAL_MONEY := 180
+const INITIAL_STOCK := {"101": 5, "102": 5, "103": 5, "104": 5, "105": 5, "106": 5}
 const SLOT_COUNT = 3
 const MAX_STUDENT_NAME_LENGTH = 50
 const MAX_IMPORT_BYTES = 1024 * 1024
@@ -433,6 +435,7 @@ func _montar_save_data() -> Dictionary:
 		"game": _coletar_dados_sistema(GameManager),
 		"shop": _coletar_dados_sistema(UpgradeManager),
 		"stock": _coletar_dados_sistema(StockSystem),
+		"challenge": _coletar_dados_sistema(ChallengeSystem),
 		"delivery": _coletar_dados_sistema(DeliverySystem),
 		"interpreter": _coletar_dados_sistema(InterpreterSystem),
 		"tutorial": _validar_tutorial(dados.get("tutorial", {}))
@@ -448,6 +451,7 @@ func _coletar_dados_sistema(system: Object) -> Dictionary:
 func _carregar_sistemas(save_data: Dictionary) -> void:
 	_carregar_sistema(GameManager, save_data.get("game", {}))
 	_carregar_sistema(StockSystem, save_data.get("stock", {}))
+	_carregar_sistema(ChallengeSystem, save_data.get("challenge", {}))
 	_carregar_sistema(InterpreterSystem, save_data.get("interpreter", {}))
 	_carregar_sistema(DeliverySystem, save_data.get("delivery", {}))
 	_carregar_sistema(UpgradeManager, save_data.get("shop", {}))
@@ -477,18 +481,18 @@ func _save_padrao() -> Dictionary:
 			"student_name": ""
 		},
 		"game": {
-			"dinheiro": 0,
+			"dinheiro": INITIAL_MONEY,
 			"diamonds": 0,
 			"game_completed": false,
 			"secret_menu_unlocked": false,
 			"unlocked_mechanics": {
 				"sum": true,
-				"cart": false,
-				"discount": false,
+				"cart": true,
+				"discount": true,
 				"change": false,
-				"stock": false,
-				"if": false,
-				"sensor": false,
+				"stock": true,
+				"if": true,
+				"sensor": true,
 				"delivery": false
 			},
 			"upgrades": []
@@ -497,7 +501,15 @@ func _save_padrao() -> Dictionary:
 			"comprados": {}
 		},
 		"stock": {
-			"quantities": {}
+			"schema_version": 2,
+			"quantities": INITIAL_STOCK.duplicate(true)
+		},
+		"challenge": {
+			"id": "mercado_automatizado",
+			"completed": false,
+			"valid_sales": 0,
+			"script_purchases": 0,
+			"recoveries": 0
 		},
 		"delivery": {
 			"state": 0,
@@ -542,6 +554,12 @@ func _validar_dados(data: Dictionary) -> Dictionary:
 
 	if normalizado.has("stock") and normalizado["stock"] is Dictionary:
 		resultado["stock"] = _validar_stock(normalizado["stock"])
+	elif not data.is_empty():
+		# Dados antigos sem estoque não recebem produtos silenciosamente durante a migração.
+		resultado["stock"]["quantities"] = {}
+
+	if normalizado.has("challenge") and normalizado["challenge"] is Dictionary:
+		resultado["challenge"] = normalizado["challenge"].duplicate(true)
 
 	if normalizado.has("delivery") and normalizado["delivery"] is Dictionary:
 		resultado["delivery"] = _validar_delivery(normalizado["delivery"])

@@ -1,20 +1,18 @@
 extends RefCounted
 
-const WORKSPACE_VERSION := 4
-const DEFAULT_LANGUAGE := "c_like"
-const PYTHON_LIKE_LANGUAGE := "python_like"
-const SUPPORTED_LANGUAGES := [DEFAULT_LANGUAGE, PYTHON_LIKE_LANGUAGE]
-const DEFAULT_SOURCE := "int main(){\n\n}\n"
+const WORKSPACE_VERSION := 7
+const PYTHON_WORKSPACE_VERSION := 5
+const DEFAULT_LANGUAGE := "python_like"
+const LEGACY_C_LIKE_LANGUAGE := "c_like"
+const DEFAULT_SOURCE := "print(\"Hello, World!\")\n"
 const DEFAULT_TITLE := "Principal"
 const DELIVERY_TITLE := "Delivery"
-const DELIVERY_SOURCE := """int main() {
-	// Leia o relatório do Delivery e declare os lucros.
-}
+const DELIVERY_SOURCE := """# Leia o relatório do Delivery e declare os lucros.
+entregas = get_deliveries()
 """
 
 var active_script_id := ""
 var main_script_id := ""
-var stock_script_id := ""
 var delivery_script_id := ""
 
 var scripts: Array[Dictionary] = []
@@ -50,7 +48,7 @@ func _create_script(title: String, source: String, language: String) -> String:
 	return str(script["id"])
 
 func delete_script(id: String) -> bool:
-	if id == delivery_script_id:
+	if is_reserved_script(id):
 		return false
 	if scripts.size() <= 1:
 		return false
@@ -64,8 +62,6 @@ func delete_script(id: String) -> bool:
 
 	if main_script_id == id:
 		main_script_id = str(scripts[0]["id"])
-	if stock_script_id == id:
-		stock_script_id = ""
 	if delivery_script_id == id:
 		delivery_script_id = ""
 	if was_active:
@@ -123,18 +119,6 @@ func update_active_source(source: String) -> void:
 	script["source"] = source
 	script["updated_at"] = Time.get_unix_time_from_system()
 
-func set_active_language(language: String) -> bool:
-	if not SUPPORTED_LANGUAGES.has(language):
-		return false
-	var script := get_active_script()
-	if script.is_empty():
-		return false
-	if str(script.get("language", DEFAULT_LANGUAGE)) == language:
-		return true
-	script["language"] = language
-	script["updated_at"] = Time.get_unix_time_from_system()
-	return true
-
 func get_active_source() -> String:
 	var script := get_active_script()
 	return str(script.get("source", ""))
@@ -150,7 +134,11 @@ func ensure_delivery_script() -> String:
 	return delivery_script_id
 
 func is_reserved_script(id: String) -> bool:
-	return not delivery_script_id.is_empty() and id == delivery_script_id
+	return not id.is_empty() and id == delivery_script_id
+
+func is_legacy_script(id: String) -> bool:
+	var script := get_script_document(id)
+	return not script.is_empty() and str(script.get("language", DEFAULT_LANGUAGE)) != DEFAULT_LANGUAGE
 
 func serialize() -> Dictionary:
 	_ensure_default_script()
@@ -159,7 +147,6 @@ func serialize() -> Dictionary:
 		"version": WORKSPACE_VERSION,
 		"active_script_id": active_script_id,
 		"main_script_id": main_script_id,
-		"stock_script_id": stock_script_id,
 		"delivery_script_id": delivery_script_id,
 		"scripts": scripts.duplicate(true)
 	}
@@ -168,7 +155,6 @@ func deserialize(data: Dictionary) -> void:
 	scripts.clear()
 	active_script_id = ""
 	main_script_id = ""
-	stock_script_id = ""
 	delivery_script_id = ""
 	_next_id_number = 1
 
@@ -182,15 +168,19 @@ func deserialize(data: Dictionary) -> void:
 			data = workspace_data
 
 	if data.has("scripts") and data["scripts"] is Array:
+		var fallback_language := (
+			DEFAULT_LANGUAGE
+			if int(data.get("version", 0)) >= PYTHON_WORKSPACE_VERSION
+			else LEGACY_C_LIKE_LANGUAGE
+		)
 		for raw_script in data["scripts"]:
 			if raw_script is Dictionary:
-				var normalized := _normalize_script(raw_script)
+				var normalized := _normalize_script(raw_script, fallback_language)
 				if not normalized.is_empty():
 					scripts.append(normalized)
 
 		active_script_id = str(data.get("active_script_id", ""))
 		main_script_id = str(data.get("main_script_id", ""))
-		stock_script_id = str(data.get("stock_script_id", ""))
 		delivery_script_id = str(data.get("delivery_script_id", ""))
 	elif data.has("script_text") and data["script_text"] is String:
 		_migrate_old_save_if_needed(data)
@@ -201,8 +191,6 @@ func deserialize(data: Dictionary) -> void:
 
 	if main_script_id.is_empty() or _find_script_index(main_script_id) == -1:
 		main_script_id = str(scripts[0]["id"])
-	if not stock_script_id.is_empty() and _find_script_index(stock_script_id) == -1:
-		stock_script_id = ""
 	if not delivery_script_id.is_empty() and _find_script_index(delivery_script_id) == -1:
 		delivery_script_id = ""
 
@@ -219,7 +207,6 @@ func _migrate_old_save_if_needed(data: Dictionary) -> void:
 	scripts.clear()
 	active_script_id = ""
 	main_script_id = ""
-	stock_script_id = ""
 	delivery_script_id = ""
 	_next_id_number = 1
 
@@ -227,11 +214,11 @@ func _migrate_old_save_if_needed(data: Dictionary) -> void:
 	if data.has("script_text") and data["script_text"] is String:
 		old_source = str(data["script_text"])
 
-	var id := create_script(DEFAULT_TITLE, old_source)
+	var id := _create_script(DEFAULT_TITLE, old_source, LEGACY_C_LIKE_LANGUAGE)
 	active_script_id = id
 	main_script_id = id
 
-func _normalize_script(raw_script: Dictionary) -> Dictionary:
+func _normalize_script(raw_script: Dictionary, fallback_language: String) -> Dictionary:
 	var id := str(raw_script.get("id", "")).strip_edges()
 	if id.is_empty() or _find_script_index(id) != -1:
 		id = _generate_id()
@@ -248,7 +235,7 @@ func _normalize_script(raw_script: Dictionary) -> Dictionary:
 		"id": id,
 		"title": title,
 		"source": str(raw_script.get("source", "")),
-		"language": str(raw_script.get("language", DEFAULT_LANGUAGE)),
+		"language": str(raw_script.get("language", fallback_language)),
 		"created_at": created_at,
 		"updated_at": updated_at
 	}
@@ -256,7 +243,7 @@ func _normalize_script(raw_script: Dictionary) -> Dictionary:
 func _ensure_default_script() -> void:
 	if not scripts.is_empty():
 		return
-	var id := create_script(DEFAULT_TITLE, "")
+	var id := create_script(DEFAULT_TITLE, DEFAULT_SOURCE)
 	active_script_id = id
 	main_script_id = id
 

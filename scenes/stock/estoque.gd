@@ -58,11 +58,12 @@ func _on_remove(nome):
 func increase_selected_quantity(item_id: String) -> void:
 	var current_amount = get_selected_quantity(item_id)
 	var remaining_capacity = get_remaining_capacity(item_id)
-	if current_amount >= remaining_capacity:
+	var lot_size := _get_lot_size(item_id)
+	if current_amount + lot_size > remaining_capacity:
 		_show_message("Já não cabe mais " + item_id + ".")
 		return
 
-	selected_quantities[item_id] = current_amount + 1
+	selected_quantities[item_id] = current_amount + lot_size
 	_clear_message()
 	refresh_stock_ui()
 
@@ -71,7 +72,7 @@ func decrease_selected_quantity(item_id: String) -> void:
 	if current_amount <= 0:
 		return
 
-	var new_amount = current_amount - 1
+	var new_amount = current_amount - _get_lot_size(item_id)
 	if new_amount <= 0:
 		selected_quantities.erase(item_id)
 	else:
@@ -88,8 +89,14 @@ func get_remaining_capacity(item_id: String) -> int:
 func get_preco(nome):
 	for item in estoque:
 		if item.name == nome:
-			return item.price
+			return item.acquisition_cost
 	return 0
+
+func _get_lot_size(nome: String) -> int:
+	for item in estoque:
+		if item.name == nome:
+			return item.lot_size
+	return 1
 
 func calculate_total_purchase_cost() -> int:
 	var total_preco = 0
@@ -114,7 +121,7 @@ func build_purchase_list_text() -> String:
 		if quantity <= 0:
 			continue
 
-		var subtotal = int(item.price) * quantity
+		var subtotal = int(item.acquisition_cost) * quantity
 		total += subtotal
 		lines.append("%s x%d - R$ %d" % [item.name, quantity, subtotal])
 
@@ -168,22 +175,20 @@ func confirm_purchase() -> void:
 		refresh_stock_ui()
 		return
 
-	var purchase := []
+	var purchase := {}
 	for item in estoque:
-		purchase.append(get_selected_quantity(str(item.name)))
+		var amount := get_selected_quantity(str(item.name))
+		if amount > 0:
+			purchase[item.code] = amount
 
-	var result := StockSystem.try_buy_stock_from_script(purchase)
-	if not result.get("success", false):
-		_show_message(str(result.get("error", "Compra cancelada.")))
+	var result := StockSystem.try_buy_stock(purchase)
+	if not result.get("ok", false):
+		_show_message(str(result.get("mensagem", result.get("erro", "Compra cancelada."))))
 		refresh_stock_ui()
 		return
 
 	selected_quantities.clear()
-	var warning := str(result.get("warning", ""))
-	if warning.is_empty():
-		_show_message("Compra concluída.")
-	else:
-		_show_message("Compra incompleta: o dinheiro acabou. Confira o estoque; os primeiros itens da lista podem ter sido comprados.")
+	_show_message("Compra concluída.")
 	draw_estoque(StockSystem.get_stock())
 	refresh_purchase_summary()
 	call_deferred("_refresh_money_label")
@@ -191,7 +196,9 @@ func confirm_purchase() -> void:
 func _sanitize_selected_quantities() -> Dictionary:
 	var valid_quantities := {}
 	for nome in selected_quantities:
+		var lot_size := _get_lot_size(str(nome))
 		var amount = min(max(0, int(selected_quantities[nome])), StockSystem.get_available_space(str(nome)))
+		amount -= amount % lot_size
 		if amount > 0:
 			valid_quantities[str(nome)] = amount
 	return valid_quantities

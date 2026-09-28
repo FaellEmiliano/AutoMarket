@@ -57,6 +57,8 @@ func show_topic(id: String) -> bool:
 	for topic in Topics.TOPICS:
 		if str(topic.id) != id:
 			continue
+		if not Progress.is_topic_active(topic):
+			return false
 		if not Progress.is_requirement_met(topic.get("requirement", "")):
 			return false
 		topic_id = id

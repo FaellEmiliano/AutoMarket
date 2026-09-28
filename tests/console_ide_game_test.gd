@@ -31,14 +31,11 @@ func _ready() -> void:
 	tutorial._enter_step(1)
 	menu.toggle_button.button_pressed = true
 	await get_tree().process_frame
-	_check(tutorial.current_step == 2 and menu.is_aberto(), "Botão Scripts avança tutorial")
+	_check(tutorial.current_step == 1 and menu.is_aberto(), "Tutorial curto abre a IDE sem avançar sozinho")
 	_check(menu.workspace_layer.layer == 21, "IDE acompanha highlight do tutorial")
 	tutorial._enter_step(3)
 	_check(not menu.is_minimizado(), "Tutorial keeps the IDE full screen")
-	_check(ide.get_code_text().contains("Ola mundo"), "Tutorial insere código")
-	ide._on_run_pressed()
-	await get_tree().create_timer(0.2).timeout
-	_check(tutorial.current_step == 4, "Execução avança tutorial")
+	_check(ide.get_code_text() == "print(\"Hello, World!\")\n", "IDE abre o Hello World simples do arquivo Principal")
 	await _capture("tutorial")
 	tutorial._finish_tutorial()
 	await get_tree().process_frame
@@ -56,10 +53,10 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_check(not menu.is_aberto() and not game.pause_menu.visible, "Escape IDE não abre Pause")
 	menu.set_aberto(true)
-	ide.set_code_text("int main(){\n    float total = 0;\n    for(int i = 0; i < 5; i++){\n        total = total + i;\n    }\n    print(total);\n}\n")
+	ide.set_code_text("total = 0\nfor i in range(5):\n    total = total + i\nprint(total)\n")
 	ide._on_run_pressed()
 	await get_tree().create_timer(0.1).timeout
-	_check(ide.output.text_label.text.contains("10"), "C-like executa no jogo")
+	_check(ide.output.text_label.text.contains("10"), "Python-like executa no jogo")
 	var c_source: String = ide.get_code_text()
 	ide.code_edit.set_line(1, "    pr")
 	ide.code_edit.set_caret_line(1)
@@ -72,11 +69,10 @@ func _ready() -> void:
 	await get_tree().process_frame
 	_check(menu.is_aberto(), "Escape autocomplete não fecha IDE")
 	ide.set_code_text(c_source)
-	ide.open_document("help", "input")
+	ide.open_document("help", "terminal")
 	await get_tree().process_frame
 	await _capture("documentation")
 	ide.open_document("script", str(InterpreterSystem.get_active_script().id))
-	ide._on_language_selected(1)
 	FeatureManager.unlock_feature(FeatureManager.FEATURE_STOCK)
 	ide.set_code_text("def somar(valores):\n    total = 0\n    for valor in valores:\n        total = total + valor\n    return total\n\nprint(somar([12, 8, 15]))\nwait(30)\n")
 	ide._on_run_pressed()
@@ -138,6 +134,8 @@ func _key(code: Key) -> void:
 
 func _capture(label: String) -> void:
 	_check(menu.is_aberto() and ide.is_visible_in_tree(), "IDE visível na captura " + label)
+	if DisplayServer.get_name() == "headless":
+		return
 	await RenderingServer.frame_post_draw
 	get_viewport().get_texture().get_image().save_png("user://ide_game_%s.png" % label)
 

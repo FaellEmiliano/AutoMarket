@@ -6,6 +6,7 @@ var max_spawn_delay = 8.0
 var cliente_na_tela = false
 var aguardando_proximo_cliente = false
 var spawn_bloqueado := false
+var _paused_for_empty_stock := false
 
 @onready var game: Control = $".."
 
@@ -16,6 +17,8 @@ func _ready() -> void:
 	EventBus.connect("end_client", end_client)
 	EventBus.open_client_terminal.connect(open_terminal)
 	UpgradeManager.upgrade_aplicado.connect(_on_upgrade_aplicado)
+	if not StockSystem.stock_purchase_completed.is_connected(_on_stock_purchase_completed):
+		StockSystem.stock_purchase_completed.connect(_on_stock_purchase_completed)
 	_criar_timer()
 	var tutorial_data = Saves.get_tutorial_data()
 	if not tutorial_data.get("completed", false):
@@ -70,12 +73,7 @@ func spawnar_cliente() -> void:
 	var challenge = ChallengeSystem.set_context()
 	if challenge == null:
 		if FeatureManager.has_feature(FeatureManager.FEATURE_STOCK):
-			if StockSystem.try_emergency_restock():
-				EventBus.emit_signal("send_debug", "Reposição emergencial: 1 produto adicionado para evitar travamento.")
-				EventBus.emit_signal("get_estoque")
-				iniciar_fluxo_cliente()
-			else:
-				_pausar_por_estoque_vazio()
+			_pausar_por_estoque_vazio()
 			return
 		iniciar_fluxo_cliente()
 		return
@@ -85,7 +83,9 @@ func spawnar_cliente_tutorial() -> void:
 	if cliente_na_tela or TransactionManager.has_active_transaction():
 		return
 
-	_criar_cliente_com_challenge(ChallengeSystem.generate_sum_challenge())
+	var challenge = ChallengeSystem.generate_stock_challenge()
+	if challenge != null:
+		_criar_cliente_com_challenge(challenge)
 
 func spawnar_cliente_debug(type: String) -> bool:
 	if cliente_na_tela or TransactionManager.has_active_transaction():
@@ -97,14 +97,6 @@ func spawnar_cliente_debug(type: String) -> bool:
 
 	var challenge: ChallengeData
 	match type:
-		"soma":
-			challenge = ChallengeSystem.generate_sum_challenge()
-		"compra_variavel":
-			challenge = ChallengeSystem.generate_variable_purchase_challenge()
-		"cliente_ouro":
-			challenge = ChallengeSystem.generate_golden_challenge()
-		"troco":
-			challenge = ChallengeSystem.generate_change_challenge()
 		"estoque":
 			challenge = ChallengeSystem.generate_stock_challenge()
 		_:
@@ -123,13 +115,25 @@ func bloquear_spawn() -> void:
 
 func liberar_spawn() -> void:
 	spawn_bloqueado = false
+	_paused_for_empty_stock = false
 	iniciar_fluxo_cliente()
 
 func _pausar_por_estoque_vazio() -> void:
+	_paused_for_empty_stock = true
 	var mensagem = "Clientes pausados: estoque vazio. Reponha produtos para voltar a atender."
+	if StockSystem.get_budget() <= 0:
+		mensagem = "Mercado sem estoque e sem orçamento. Conclua outras fontes de recompensa ou carregue um estado viável."
 	EventBus.emit_signal("send_debug", mensagem)
 	push_warning(mensagem)
 	bloquear_spawn()
+
+func _on_stock_purchase_completed(_event: Dictionary) -> void:
+	if not _paused_for_empty_stock or not StockSystem.has_any_items():
+		return
+	_paused_for_empty_stock = false
+	spawn_bloqueado = false
+	EventBus.emit_signal("send_debug", "Estoque reposto. O fluxo de clientes foi retomado.")
+	iniciar_fluxo_cliente()
 
 func _criar_cliente_com_challenge(challenge: ChallengeData) -> void:
 	if challenge == null:

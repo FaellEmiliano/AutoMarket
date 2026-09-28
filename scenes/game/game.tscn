@@ -160,8 +160,12 @@ flat = true
 [node name="PauseMenu" parent="HUD" instance=ExtResource("11_pause")]
 
 [node name="DeliveryPanel" parent="HUD" instance=ExtResource("13_delivery")]
+visible = false
+process_mode = 4
 
 [node name="CompletionOverlay" parent="HUD" instance=ExtResource("14_completion")]
+visible = false
+process_mode = 4
 
 [node name="NotificationPanel" type="PanelContainer" parent="HUD"]
 visible = false
@@ -196,6 +200,70 @@ autowrap_mode = 3
 process_mode = 3
 wait_time = 4.0
 one_shot = true
+
+[node name="HistoryButton" type="Button" parent="HUD"]
+process_mode = 3
+z_index = 170
+anchors_preset = 2
+anchor_top = 1.0
+anchor_bottom = 1.0
+offset_left = 12.0
+offset_top = -46.0
+offset_right = 104.0
+offset_bottom = -12.0
+grow_vertical = 0
+focus_mode = 0
+text = "Histórico"
+tooltip_text = "Ver as últimas 50 mensagens"
+
+[node name="HistoryPanel" type="PanelContainer" parent="HUD"]
+visible = false
+process_mode = 3
+z_index = 190
+anchors_preset = 15
+anchor_left = 0.17
+anchor_top = 0.12
+anchor_right = 0.83
+anchor_bottom = 0.88
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"DeepPanel"
+
+[node name="Margin" type="MarginContainer" parent="HUD/HistoryPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 18
+theme_override_constants/margin_top = 14
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 14
+
+[node name="Layout" type="VBoxContainer" parent="HUD/HistoryPanel/Margin"]
+layout_mode = 2
+theme_override_constants/separation = 12
+
+[node name="Header" type="HBoxContainer" parent="HUD/HistoryPanel/Margin/Layout"]
+layout_mode = 2
+
+[node name="Title" type="Label" parent="HUD/HistoryPanel/Margin/Layout/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_type_variation = &"TitleLabel"
+text = "Histórico de mensagens"
+
+[node name="CloseButton" type="Button" parent="HUD/HistoryPanel/Margin/Layout/Header"]
+custom_minimum_size = Vector2(44, 32)
+layout_mode = 2
+focus_mode = 0
+text = "X"
+tooltip_text = "Fechar histórico"
+
+[node name="HistoryText" type="RichTextLabel" parent="HUD/HistoryPanel/Margin/Layout"]
+layout_mode = 2
+size_flags_vertical = 3
+text = "Nenhuma mensagem ainda."
+fit_content = false
+scroll_active = true
+scroll_following = true
+selection_enabled = true
 
 [node name="ColorRect" type="Control" parent="HUD" unique_id=74741330]
 custom_minimum_size = Vector2(100, 52)
@@ -246,6 +314,8 @@ mouse_filter = 2
 texture = ExtResource("9_h34u2")
 
 [node name="ShopMenu" parent="." unique_id=1226205563 instance=ExtResource("7_xqcsl")]
+visible = false
+process_mode = 4
 top_level = false
 z_index = 2
 layout_mode = 1

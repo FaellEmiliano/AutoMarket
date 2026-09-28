@@ -27,17 +27,17 @@ The execution pipeline follows the general structure:
 
 ```text
 Source Code
-    ↓
+	↓
   Lexer
-    ↓
+	↓
  Tokens
-    ↓
+	↓
   Parser
-    ↓
+	↓
    AST
-    ↓
+	↓
  Executor / Runtime
-    ↓
+	↓
  Game Systems
 ```
 
@@ -84,6 +84,12 @@ Some of the main game systems include:
 - `DeliverySystem`
 
 These systems communicate with the game while keeping the interpreter separated from most gameplay logic.
+
+## Initial integrated challenge
+
+New games begin with **Mercado Automatizado** and a single free-form `Principal` file containing a simple Python-like Hello World. Players may keep checkout and stock logic together or create any number of files with arbitrary names; every Python-like file has access to the same market APIs. The initial balance is R$180 and five units of each catalog product. This is deliberately partial stock: buying one supplier lot of every product costs R$135, while a fixed purchase of ten units of every product costs R$270 and is rejected by the shared budget. The setup therefore supports valid early replenishment without making capacity or budget calculations irrelevant.
+
+The challenge is evaluated from gameplay events rather than source-code shape or file identity. Completion requires three valid sales while at least one automation is active, at least one successful purchase made by a script, and a real recovery of a product that dropped below its catalog minimum. Manual purchases remain available but do not count as automation evidence.
 
 ## Technologies
 

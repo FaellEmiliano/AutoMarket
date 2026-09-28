@@ -1,6 +1,11 @@
 extends RefCounted
 class_name HelpProgress
 
+const ActiveExperienceData = preload("res://data/ActiveExperience.gd")
+
+static func is_topic_active(topic: Dictionary) -> bool:
+	return ActiveExperienceData.is_help_topic_active(str(topic.get("id", "")))
+
 static func is_requirement_met(requirement: Variant) -> bool:
 	if requirement == null:
 		return true
@@ -43,6 +48,13 @@ static func is_requirement_met(requirement: Variant) -> bool:
 static func get_visible_topics(topics: Array) -> Array:
 	var visible_topics: Array = []
 	for topic in topics:
-		if topic is Dictionary and is_requirement_met(topic.get("requirement", "")):
+		if topic is Dictionary and is_topic_active(topic) and is_requirement_met(topic.get("requirement", "")):
 			visible_topics.append(topic)
 	return visible_topics
+
+static func get_active_topics(topics: Array) -> Array:
+	var active_topics: Array = []
+	for topic in topics:
+		if topic is Dictionary and is_topic_active(topic):
+			active_topics.append(topic)
+	return active_topics

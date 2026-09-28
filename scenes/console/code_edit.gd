@@ -2,7 +2,7 @@ extends CodeEdit
 
 const Profiles = preload("res://scenes/console/components/ide_language_profiles.gd")
 const COLORS := {"keywords": Color("c5a0df"), "constants": Color("dfa77e"), "builtins": Color("d5bc80")}
-var language_id := "c_like"
+var language_id := "python_like"
 var profile: Dictionary
 var _diagnostic_lines: Array[int] = []
 
@@ -12,11 +12,11 @@ func _ready() -> void:
 	gutters_draw_line_numbers = true
 	auto_brace_completion_enabled = true
 	code_completion_enabled = true
-	configure_for_language(language_id)
+	configure_for_python_like()
 
-func configure_for_language(language: String) -> void:
-	language_id = language
-	profile = Profiles.get_profile(language)
+func configure_for_python_like() -> void:
+	language_id = "python_like"
+	profile = Profiles.get_profile()
 	cancel_code_completion()
 	var highlighter := CodeHighlighter.new()
 	for category in COLORS:

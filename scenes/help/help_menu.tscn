@@ -54,16 +54,16 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_constants/margin_left = 16
-theme_override_constants/margin_top = 14
-theme_override_constants/margin_right = 16
-theme_override_constants/margin_bottom = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 18
+theme_override_constants/margin_bottom = 18
 
 [node name="Layout" type="VBoxContainer" parent="WindowFrame/OuterMargin" unique_id=1524923763]
 layout_mode = 2
-theme_override_constants/separation = 10
+theme_override_constants/separation = 12
 
 [node name="Header" type="HBoxContainer" parent="WindowFrame/OuterMargin/Layout" unique_id=152028249]
-custom_minimum_size = Vector2(0, 42)
+custom_minimum_size = Vector2(0, 48)
 layout_mode = 2
 theme_override_constants/separation = 10
 
@@ -75,19 +75,19 @@ theme_override_constants/separation = 2
 [node name="MenuTitle" type="Label" parent="WindowFrame/OuterMargin/Layout/Header/TitleBlock" unique_id=206695914]
 layout_mode = 2
 theme_type_variation = &"TitleLabel"
-text = "CADERNO"
+text = "GUIA DA LOJA"
 
 [node name="MenuSubtitle" type="Label" parent="WindowFrame/OuterMargin/Layout/Header/TitleBlock" unique_id=2037320683]
 layout_mode = 2
 theme_type_variation = &"SubtitleLabel"
-text = "Cola rápida para não se perder"
+text = "Poucos guias, com tudo que você precisa"
 
 [node name="ProgressLabel" type="Label" parent="WindowFrame/OuterMargin/Layout/Header" unique_id=882165054]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(180, 0)
 layout_mode = 2
 theme_type_variation = &"SubtitleLabel"
-text = "PÁGINAS 0/0"
+text = "GUIAS 0/0"
 horizontal_alignment = 2
 vertical_alignment = 1
 
@@ -103,10 +103,10 @@ layout_mode = 2
 [node name="Pages" type="HBoxContainer" parent="WindowFrame/OuterMargin/Layout" unique_id=1916931317]
 layout_mode = 2
 size_flags_vertical = 3
-theme_override_constants/separation = 10
+theme_override_constants/separation = 14
 
 [node name="SidebarFrame" type="NinePatchRect" parent="WindowFrame/OuterMargin/Layout/Pages" unique_id=862777845]
-custom_minimum_size = Vector2(315, 0)
+custom_minimum_size = Vector2(270, 0)
 layout_mode = 2
 size_flags_horizontal = 0
 texture = ExtResource("4_menu")
@@ -125,21 +125,21 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 9
-theme_override_constants/margin_top = 9
-theme_override_constants/margin_right = 9
-theme_override_constants/margin_bottom = 9
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_bottom = 12
 
 [node name="SidebarLayout" type="VBoxContainer" parent="WindowFrame/OuterMargin/Layout/Pages/SidebarFrame/SidebarMargin" unique_id=1209539718]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 7
+theme_override_constants/separation = 9
 
 [node name="TopicsTitle" type="Label" parent="WindowFrame/OuterMargin/Layout/Pages/SidebarFrame/SidebarMargin/SidebarLayout" unique_id=1398053771]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_type_variation = &"CategoryLabel"
-text = "PÁGINAS"
+text = "ASSUNTOS"
 clip_text = true
 text_overrun_behavior = 3
 
@@ -153,7 +153,7 @@ horizontal_scroll_mode = 0
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 5
+theme_override_constants/separation = 7
 
 [node name="PageFrame" type="NinePatchRect" parent="WindowFrame/OuterMargin/Layout/Pages" unique_id=1976861664]
 layout_mode = 2
@@ -174,14 +174,14 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 14
-theme_override_constants/margin_top = 12
-theme_override_constants/margin_right = 14
-theme_override_constants/margin_bottom = 12
+theme_override_constants/margin_left = 22
+theme_override_constants/margin_top = 18
+theme_override_constants/margin_right = 22
+theme_override_constants/margin_bottom = 18
 
 [node name="ContentLayout" type="VBoxContainer" parent="WindowFrame/OuterMargin/Layout/Pages/PageFrame/PageMargin" unique_id=184778799]
 layout_mode = 2
-theme_override_constants/separation = 8
+theme_override_constants/separation = 12
 
 [node name="ArticleHeader" type="HBoxContainer" parent="WindowFrame/OuterMargin/Layout/Pages/PageFrame/PageMargin/ContentLayout" unique_id=1819326807]
 layout_mode = 2
@@ -223,23 +223,30 @@ size_flags_vertical = 3
 theme_type_variation = &"DeepPanel"
 
 [node name="ArticleScroll" type="ScrollContainer" parent="WindowFrame/OuterMargin/Layout/Pages/PageFrame/PageMargin/ContentLayout/ArticlePanel" unique_id=363869086]
+unique_name_in_owner = true
 layout_mode = 2
 horizontal_scroll_mode = 0
 
 [node name="Article" type="VBoxContainer" parent="WindowFrame/OuterMargin/Layout/Pages/PageFrame/PageMargin/ContentLayout/ArticlePanel/ArticleScroll" unique_id=1175919151]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 10
+theme_override_constants/separation = 18
 
 [node name="BodyLabel" type="RichTextLabel" parent="WindowFrame/OuterMargin/Layout/Pages/PageFrame/PageMargin/ContentLayout/ArticlePanel/ArticleScroll/Article" unique_id=1409692777]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 250)
+custom_minimum_size = Vector2(0, 280)
 layout_mode = 2
 size_flags_horizontal = 3
 bbcode_enabled = true
 text = "Conteúdo"
 fit_content = true
 scroll_active = false
+selection_enabled = true
+theme_override_colors/default_color = Color(0.94, 0.9, 0.8, 1)
+theme_override_constants/line_separation = 5
+theme_override_font_sizes/normal_font_size = 14
+theme_override_font_sizes/bold_font_size = 14
+theme_override_font_sizes/mono_font_size = 13
 
 [node name="SpoilerButton" type="Button" parent="WindowFrame/OuterMargin/Layout/Pages/PageFrame/PageMargin/ContentLayout/ArticlePanel/ArticleScroll/Article" unique_id=1624780868]
 unique_name_in_owner = true
@@ -262,3 +269,8 @@ bbcode_enabled = true
 text = "Dica"
 fit_content = true
 scroll_active = false
+selection_enabled = true
+theme_override_constants/line_separation = 4
+theme_override_font_sizes/normal_font_size = 12
+theme_override_font_sizes/bold_font_size = 12
+theme_override_font_sizes/mono_font_size = 12

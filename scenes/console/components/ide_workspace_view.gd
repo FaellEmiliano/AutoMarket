@@ -11,7 +11,7 @@ const ICON_EXPLORER = preload("res://assets/icons/ide_explorer.svg")
 const ICON_NEW = preload("res://assets/icons/ide_new.svg")
 const ICON_RUN = preload("res://assets/icons/ide_running.svg")
 const ICON_STOP = preload("res://assets/icons/ide_stop.svg")
-const ICON_BACK = preload("res://assets/icons/ide_back.svg")
+const ICON_CLOSE = preload("res://assets/icons/ide_close.svg")
 const ICON_MORE = preload("res://assets/icons/ide_more.svg")
 const ICON_OUTPUT = preload("res://assets/icons/ide_output.svg")
 const ICON_MAXIMIZE = preload("res://assets/icons/ide_maximize.svg")
@@ -25,9 +25,9 @@ var documentation: ScrollContainer
 var empty_state: Label
 var find_bar: HBoxContainer
 var output: VBoxContainer
-var language_button: OptionButton
 var run_button: Button
 var stop_button: Button
+var run_all_button: Button
 var close_button: Button
 var window_mode_button: Button
 var explorer_button: Button
@@ -38,6 +38,8 @@ var new_button: Button
 var status_label: Label
 var caret_label: Label
 var brand: Label
+var identity_strip: ColorRect
+var chrome_margin: MarginContainer
 var horizontal: HSplitContainer
 var vertical: VSplitContainer
 var content_host: Control
@@ -49,6 +51,7 @@ var documents: VBoxContainer
 var _short_layout := false
 var _saved_output_offset := 0
 var _compact_explorer := false
+var _fullscreen_explorer_visible := true
 var _minimized_window := false
 var _restore_output_when_wide := false
 var _restore_output_when_tall := false
@@ -59,44 +62,40 @@ func build() -> void:
 	background.color = ThemeFactory.BG
 	add_child(background)
 	background.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	var identity_strip := ColorRect.new()
+	identity_strip = ColorRect.new()
 	identity_strip.color = ThemeFactory.SURFACE
 	identity_strip.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(identity_strip)
 	identity_strip.set_anchors_preset(Control.PRESET_TOP_WIDE)
 	identity_strip.offset_bottom = 54
-	var margin := MarginContainer.new()
-	add_child(margin)
-	margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	chrome_margin = MarginContainer.new()
+	add_child(chrome_margin)
+	chrome_margin.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	for side in ["left", "right", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 12)
+		chrome_margin.add_theme_constant_override("margin_" + side, 12)
 	# StudentIdentity remains above the workspace, with its own clear strip.
-	margin.add_theme_constant_override("margin_top", 56)
+	chrome_margin.add_theme_constant_override("margin_top", 56)
 	var column := VBoxContainer.new()
-	margin.add_child(column)
+	chrome_margin.add_child(column)
 	var toolbar_panel := PanelContainer.new()
 	toolbar_panel.theme_type_variation = &"IDEToolbar"
 	column.add_child(toolbar_panel)
 	toolbar = HBoxContainer.new()
 	toolbar.add_theme_constant_override("separation", 8)
 	toolbar_panel.add_child(toolbar)
-	window_mode_button = button(toolbar, "", "Maximizar editor", ICON_MAXIMIZE)
-	explorer_button = button(toolbar, "Scripts", "Abrir ou fechar scripts e documentação", ICON_EXPLORER)
 	brand = Label.new()
 	brand.text = "EDITOR DE SCRIPTS"
 	brand.theme_type_variation = &"IDESectionLabel"
 	brand.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	toolbar.add_child(brand)
-	language_button = OptionButton.new()
-	language_button.tooltip_text = "Linguagem do script; alterar não converte o código"
-	language_button.add_item("C-like")
-	language_button.add_item("Python-like")
-	toolbar.add_child(language_button)
+	explorer_button = button(toolbar, "Explorer", "Abrir ou fechar arquivos e documentação", ICON_EXPLORER)
+	run_all_button = button(toolbar, "Rodar todos", "Iniciar todos os scripts", ICON_RUN)
 	run_button = button(toolbar, "Rodar", "Executar o script visível · Ctrl+Enter", ICON_RUN)
 	run_button.theme_type_variation = &"IDEPrimaryButton"
 	stop_button = button(toolbar, "Parar", "Interromper o script visível", ICON_STOP)
 	stop_button.theme_type_variation = &"IDEDangerButton"
-	close_button = button(toolbar, "Mercado", "Salvar e voltar ao mercado · Escape", ICON_BACK)
+	window_mode_button = button(toolbar, "", "Maximizar IDE", ICON_MAXIMIZE)
+	close_button = button(toolbar, "Fechar", "Salvar, fechar a IDE e voltar ao mercado · Escape", ICON_CLOSE)
 	content_host = Control.new()
 	content_host.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	column.add_child(content_host)
@@ -224,7 +223,7 @@ func update_layout(width: float) -> void:
 	# Narrow layouts temporarily hide output so the editor remains usable. Keep the
 	# player's output-panel choice to restore it when the editor returns to wide.
 	if layout_mode_id == LayoutMode.WIDE and next != LayoutMode.WIDE:
-		_restore_output_when_wide = output.visible
+		_restore_output_when_wide = _restore_output_when_wide or output.visible
 	layout_mode_id = next
 	_update_toolbar_layout(next)
 	brand.visible = next == LayoutMode.WIDE
@@ -246,16 +245,19 @@ func update_layout(width: float) -> void:
 
 func _update_toolbar_layout(mode: LayoutMode) -> void:
 	var compact := mode == LayoutMode.COMPACT
-	var very_narrow := compact and size.x < 300.0
+	var hide_explorer := compact and size.x < 240.0
 	toolbar.add_theme_constant_override("separation", 4 if compact else 8)
-	explorer_button.text = "" if compact else "Scripts"
+	explorer_button.text = "" if compact else "Explorer"
 	run_button.text = "" if compact else "Rodar"
 	stop_button.text = "" if compact else "Parar"
-	close_button.text = "" if compact else "Mercado"
-	language_button.visible = not very_narrow
-	close_button.visible = not very_narrow
-	language_button.custom_minimum_size.x = 80.0 if compact else 0.0
-	for control in [window_mode_button, explorer_button, run_button, stop_button, close_button]:
+	run_all_button.text = "" if compact else "Rodar todos"
+	close_button.text = "" if compact else "Fechar"
+	explorer_button.visible = not hide_explorer
+	close_button.visible = true
+	window_mode_button.visible = true
+	run_button.visible = true
+	stop_button.visible = true
+	for control in [explorer_button, run_all_button, run_button, stop_button, window_mode_button, close_button]:
 		control.theme_type_variation = &"IDEIconButton" if compact else &"Button"
 	if not compact:
 		run_button.theme_type_variation = &"IDEPrimaryButton"
@@ -266,13 +268,25 @@ func set_minimized_window(value: bool) -> void:
 	if window_mode_button == null:
 		return
 	window_mode_button.icon = ICON_MAXIMIZE if value else ICON_MINIMIZE
-	window_mode_button.tooltip_text = "Maximizar editor" if value else "Voltar ao modo minimizado"
+	window_mode_button.tooltip_text = "Maximizar IDE" if value else "Restaurar IDE ao modo docked"
+	identity_strip.visible = not value
+	chrome_margin.add_theme_constant_override("margin_top", 0 if value else 56)
+	if value:
+		_set_compact_drawer(false)
+	elif layout_mode_id != LayoutMode.COMPACT:
+		sidebar.visible = _fullscreen_explorer_visible
+	if value and output.visible:
+		_saved_output_offset = vertical.split_offset
+		_restore_output_when_wide = true
+		output.hide()
+		documents.show()
 
 func toggle_explorer() -> void:
 	if layout_mode_id == LayoutMode.COMPACT:
 		_set_compact_drawer(not _compact_explorer)
 	else:
-		sidebar.visible = not sidebar.visible
+		_fullscreen_explorer_visible = not sidebar.visible
+		sidebar.visible = _fullscreen_explorer_visible
 
 func reveal_document() -> void:
 	if layout_mode_id == LayoutMode.COMPACT and _compact_explorer:
@@ -294,7 +308,7 @@ func _leave_compact_layout() -> void:
 		sidebar.reparent(horizontal)
 		horizontal.move_child(sidebar, 0)
 	sidebar.set_anchors_preset(Control.PRESET_TOP_LEFT)
-	sidebar.visible = true
+	sidebar.visible = _fullscreen_explorer_visible
 	_sync_focus_paths()
 
 func _set_compact_drawer(open: bool) -> void:
@@ -302,7 +316,8 @@ func _set_compact_drawer(open: bool) -> void:
 	drawer_scrim.visible = open
 	drawer_background.visible = open
 	sidebar.visible = open
-	explorer_button.text = "Fechar" if open else "Scripts"
+	explorer_button.text = ""
+	explorer_button.tooltip_text = "Fechar Explorer" if open else "Abrir Explorer"
 	if open:
 		explorer.grab_focus()
 	elif code_edit.visible:
@@ -331,7 +346,7 @@ func _on_view_resized() -> void:
 		_short_layout = short_now
 		documents.show()
 		if short_now:
-			_restore_output_when_tall = output.visible
+			_restore_output_when_tall = _restore_output_when_tall or output.visible
 			output.hide()
 		elif _restore_output_when_tall and layout_mode_id == LayoutMode.WIDE:
 			show_output()

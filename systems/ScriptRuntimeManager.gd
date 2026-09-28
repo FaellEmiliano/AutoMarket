@@ -23,6 +23,7 @@ var _runtimes_by_id := {}
 var _running_runtime_by_script_id := {}
 var _runtime_order: Array[String] = []
 var _next_runtime_number := 1
+var _scheduler_cursor := 0
 var operations_per_frame_per_script := OPERATIONS_PER_FRAME_PER_SCRIPT
 var global_operations_per_frame := GLOBAL_OPERATIONS_PER_FRAME
 
@@ -179,6 +180,7 @@ func reset() -> void:
 	_runtimes_by_id.clear()
 	_running_runtime_by_script_id.clear()
 	_runtime_order.clear()
+	_scheduler_cursor = 0
 	_emit_combined_output()
 	emit_signal("runtimes_changed")
 
@@ -225,19 +227,28 @@ func get_running_runtimes() -> Array:
 func _process(_delta: float) -> void:
 	var operations_left: int = maxi(1, global_operations_per_frame)
 	var now_msec := Time.get_ticks_msec()
+	var active_ids: Array[String] = []
 	for runtime_id in _runtime_order:
+		var candidate: Dictionary = _runtimes_by_id.get(runtime_id, {})
+		if candidate.get("status") == STATUS_SLEEPING \
+				and now_msec >= int(candidate.get("wake_time_msec", 0)):
+			candidate["status"] = STATUS_RUNNING
+			candidate["wake_time_msec"] = 0
+			emit_signal("runtimes_changed")
+		if candidate.get("status") == STATUS_RUNNING:
+			active_ids.append(runtime_id)
+	if active_ids.is_empty():
+		return
+	_scheduler_cursor %= active_ids.size()
+	var ordered_ids := []
+	for offset in range(active_ids.size()):
+		ordered_ids.append(active_ids[(_scheduler_cursor + offset) % active_ids.size()])
+	_scheduler_cursor = (_scheduler_cursor + 1) % active_ids.size()
+	for runtime_id in ordered_ids:
 		if operations_left <= 0:
 			break
 
 		var runtime: Dictionary = _runtimes_by_id.get(runtime_id, {})
-		if runtime.get("status") == STATUS_SLEEPING:
-			if now_msec >= int(runtime.get("wake_time_msec", 0)):
-				runtime["status"] = STATUS_RUNNING
-				runtime["wake_time_msec"] = 0
-				emit_signal("runtimes_changed")
-			else:
-				continue
-
 		if runtime.get("status") != STATUS_RUNNING:
 			continue
 

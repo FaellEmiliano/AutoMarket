@@ -4,6 +4,7 @@ signal document_selected(kind: String, id: String)
 signal script_menu_requested(id: String)
 const Topics = preload("res://data/HelpTopics.gd")
 const Progress = preload("res://systems/HelpProgress.gd")
+const ActiveExperienceData = preload("res://data/ActiveExperience.gd")
 const STATES := {"running": "RODANDO", "sleeping": "DORMINDO", "waiting_input": "AGUARDANDO", "error": "ERRO", "finished": "FINALIZADO", "stopped": "PARADO"}
 var script_items := {}
 var topic_items := {}
@@ -24,7 +25,7 @@ func _ready() -> void:
 	docs.set_text(0, "DOCUMENTAÇÃO")
 	docs.set_selectable(0, false)
 	var categories := {}
-	for topic in Topics.TOPICS:
+	for topic in Progress.get_active_topics(Topics.TOPICS):
 		var category := str(topic.category)
 		if not categories.has(category):
 			var item := create_item(docs)
@@ -42,6 +43,8 @@ func refresh_scripts() -> void:
 	var ids := []
 	for document in InterpreterSystem.get_scripts():
 		var id := str(document.id)
+		if _is_hidden_legacy_script(id):
+			continue
 		ids.append(id)
 		if not script_items.has(id):
 			var item := create_item(_scripts_root)
@@ -60,6 +63,8 @@ func refresh_scripts() -> void:
 func refresh_states() -> void:
 	for document in InterpreterSystem.get_scripts():
 		var id := str(document.id)
+		if _is_hidden_legacy_script(id):
+			continue
 		if not script_items.has(id):
 			continue
 		var state := str(InterpreterSystem.get_runtime_by_script_id(id).get("status", "stopped"))
@@ -69,8 +74,11 @@ func refresh_states() -> void:
 		item.set_tooltip_text(0, title + " — " + STATES.get(state, "PARADO"))
 		item.set_custom_color(0, Color("e9a28e") if state == "error" else Color("dce4e8"))
 
+func _is_hidden_legacy_script(id: String) -> bool:
+	return not ActiveExperienceData.SHOW_DELIVERY and id == InterpreterSystem.get_delivery_script_id()
+
 func refresh_topics(_arg = null) -> void:
-	for topic in Topics.TOPICS:
+	for topic in Progress.get_active_topics(Topics.TOPICS):
 		var item: TreeItem = topic_items[str(topic.id)]
 		var unlocked := Progress.is_requirement_met(topic.get("requirement", ""))
 		item.set_text(0, str(topic.title) + ("" if unlocked else " · Bloqueado"))

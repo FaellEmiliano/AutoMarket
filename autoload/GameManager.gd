@@ -6,7 +6,7 @@ const DeliveryConfigData = preload("res://data/DeliveryConfig.gd")
 var current_context = null
 
 # Estado financeiro do jogador
-var money: int = 0
+var money: int = 180
 var diamonds: int = 0
 var game_completed := false
 var upgrades: Array = []
@@ -18,12 +18,12 @@ signal game_completed_changed(completed)
 # Mecânicas desbloqueadas (substitui state_of_game)
 var unlocked_mechanics = {
 	"sum": true,
-	"cart": false,
-	"discount": false,
+	"cart": true,
+	"discount": true,
 	"change": false,
-	"stock": false,
-	"if": false,
-	"sensor": false,
+	"stock": true,
+	"if": true,
+	"sensor": true,
 	"delivery": false
 }
 

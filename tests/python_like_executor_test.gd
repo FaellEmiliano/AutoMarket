@@ -630,20 +630,20 @@ func _test_automarket_bridge_availability_and_stock() -> void:
 		and unavailable.failure().details.operation == "get_stock",
 		"Built-in AutoMarket sem bridge deve falhar de forma tipada.")
 
-	var stock_snapshot := [3, 5, 7]
+	var stock_snapshot := {101: 3, 102: 5, 103: 7}
 	var bridge := FakeAutoMarketBridge.new()
 	bridge.set_response("get_stock", stock_snapshot)
 	var executor = _execute(
 		"estoque = get_stock()\n"
 		+ "quantidade = len(estoque)\n"
-		+ "estoque[1] = 99\n",
+		+ "estoque[102] = 99\n",
 		10000, "stock_script", bridge
 	)
-	stock_snapshot[0] = 42
+	stock_snapshot[101] = 42
 	_check(not executor.has_failure()
-		and _value(executor, "estoque").representation() == "[3, 99, 7]"
+		and _value(executor, "estoque").representation() == "{101: 3, 102: 99, 103: 7}"
 		and _integer(executor, "quantidade") == 3
-		and stock_snapshot == [42, 5, 7],
+		and stock_snapshot == {101: 42, 102: 5, 103: 7},
 		"Conversão de estoque deve copiar dados nas duas direções da fronteira.")
 	var stock_calls: Array = bridge.calls_for("get_stock")
 	_check(stock_calls.size() == 1
@@ -657,16 +657,16 @@ func _test_automarket_synchronous_builtins() -> void:
 	bridge.set_response("sensor", true)
 	bridge.set_response("input", 12.5)
 	bridge.set_response("send", true)
-	bridge.set_response("buy_stock", null, ["compra aplicada"])
+	bridge.set_response("buy_stock", {"ok": true, "total": 35, "saldo": 65}, ["compra aplicada"])
 	bridge.set_response("get_deliveries", [3, 0, 2])
 	bridge.set_response("declare_profit", null, ["declaração recebida"])
 	var executor = _execute(
 		"cliente = sensor('cliente_na_tela')\n"
 		+ "entrada = input()\n"
 		+ "enviado = send(entrada, {'codigo': 10, 'itens': [1, 2, 3]})\n"
-		+ "compra = [1, 0, 3]\n"
+		+ "compra = {101: 5, 103: 10}\n"
 		+ "compra_resultado = buy_stock(compra)\n"
-		+ "compra[0] = 9\n"
+		+ "compra[101] = 10\n"
 		+ "entregas = get_deliveries()\n"
 		+ "declaracao = declare_profit([10, 20, 30])\n",
 		10000, "delivery_script", bridge
@@ -675,7 +675,7 @@ func _test_automarket_synchronous_builtins() -> void:
 		and _value(executor, "cliente").boolean_value
 		and absf(_float(executor, "entrada") - 12.5) < 0.0001
 		and _value(executor, "enviado").boolean_value
-		and _value(executor, "compra_resultado") is Values.NoneValue
+		and _value(executor, "compra_resultado").representation() == "{'ok': True, 'total': 35, 'saldo': 65}"
 		and _value(executor, "declaracao") is Values.NoneValue
 		and _value(executor, "entregas").representation() == "[3, 0, 2]",
 		"APIs síncronas devem converter argumentos e retornos neutros.")
@@ -692,8 +692,8 @@ func _test_automarket_synchronous_builtins() -> void:
 		and send_calls[0].arguments == [12.5, {
 			"codigo": 10, "itens": [1, 2, 3]
 		}], "send deve receber estruturas GDScript recursivamente convertidas.")
-	_check(buy_calls.size() == 1 and buy_calls[0].arguments == [[1, 0, 3]],
-		"Mutar a lista Python-like depois de buy_stock não deve alterar a cópia da bridge.")
+	_check(buy_calls.size() == 1 and buy_calls[0].arguments == [{101: 5, 103: 10}],
+		"Mutar o dicionario Python-like depois de buy_stock não deve alterar a cópia da bridge.")
 	_check(declaration_calls.size() == 1
 		and declaration_calls[0].arguments == [[10, 20, 30]],
 		"declare_profit deve encaminhar uma lista nativa independente.")
@@ -732,7 +732,7 @@ func _test_automarket_conversion_and_errors() -> void:
 	_check(invalid_buy.has_failure()
 		and invalid_buy.failure().code == "TYPE_INVALID_ARGUMENT"
 		and invalid_buy_bridge.calls.is_empty(),
-		"buy_stock deve exigir lista antes de delegar ao gameplay.")
+		"buy_stock deve exigir dicionario antes de delegar ao gameplay.")
 	var invalid_buy_arity = _execute(
 		"buy_stock()\n", 10000, "invalid_buy_arity", invalid_buy_bridge
 	)
@@ -773,7 +773,7 @@ func _test_automarket_conversion_and_errors() -> void:
 		"gameplay", {"reason": "capacity"}
 	)
 	var rejected = _execute(
-		"buy_stock([1])\n", 10000, "rejected", rejected_bridge
+		"buy_stock({101: 5})\n", 10000, "rejected", rejected_bridge
 	)
 	_check(rejected.has_failure()
 		and rejected.failure().code == "STOCK_PURCHASE_REJECTED"

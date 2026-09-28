@@ -36,22 +36,20 @@ func read_sensor(name: String, _context: Dictionary) -> Response:
 
 
 func get_stock(_context: Dictionary) -> Response:
-	return BridgeContract.Response.succeeded(StockSystem.get_stock_snapshot().duplicate())
+	return BridgeContract.Response.succeeded(StockSystem.get_stock_snapshot().duplicate(true))
 
+func product_table(_context: Dictionary) -> Response:
+	return BridgeContract.Response.succeeded(StockSystem.get_product_table().duplicate(true))
 
-func buy_stock(purchase: Array, _context: Dictionary) -> Response:
+func get_budget(_context: Dictionary) -> Response:
+	return BridgeContract.Response.succeeded(StockSystem.get_budget())
+
+func buy_stock(purchase: Dictionary, _context: Dictionary) -> Response:
 	var result := StockSystem.try_buy_stock_from_script(purchase.duplicate(true))
-	if not bool(result.get("success", false)):
-		return BridgeContract.Response.failed(
-			"AUTOMARKET_STOCK_PURCHASE_REJECTED",
-			str(result.get("error", "Compra cancelada.")),
-			"gameplay", {"operation": "buy_stock"}
-		)
 	var output: Array[String] = []
-	var warning := str(result.get("warning", ""))
-	if not warning.is_empty():
-		output.append(warning)
-	return BridgeContract.Response.succeeded(null, output)
+	if not bool(result.get("ok", false)):
+		output.append(str(result.get("mensagem", "Compra cancelada.")))
+	return BridgeContract.Response.succeeded(result.duplicate(true), output)
 
 
 func get_deliveries(context: Dictionary) -> Response:

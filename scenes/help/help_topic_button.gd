@@ -22,7 +22,7 @@ func setup(topic: Dictionary, unlocked: bool, selected: bool, locked_reason: Str
 	clip_text = true
 	text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 	size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	custom_minimum_size = Vector2(0, 42)
+	custom_minimum_size = Vector2(0, 48)
 	tooltip_text = "Disponível" if _unlocked else locked_reason
 	_update_visuals()
 
@@ -39,7 +39,7 @@ func _on_pressed() -> void:
 	topic_selected.emit(topic_id)
 
 func _update_visuals() -> void:
-	var marker := "> " if _selected else "  "
+	var marker := "◆ " if _selected else "  "
 	text = "%s%s" % [marker, _topic_title]
 	tooltip_text = "Disponível" if _unlocked else "Bloqueado: %s" % _locked_reason
 

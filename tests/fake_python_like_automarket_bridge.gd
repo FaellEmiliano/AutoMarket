@@ -42,8 +42,14 @@ func read_sensor(name: String, context: Dictionary) -> Bridge.Response:
 func get_stock(context: Dictionary) -> Bridge.Response:
 	return _record("get_stock", [], context)
 
+func product_table(context: Dictionary) -> Bridge.Response:
+	return _record("tabela_produtos", [], context)
 
-func buy_stock(purchase: Array, context: Dictionary) -> Bridge.Response:
+func get_budget(context: Dictionary) -> Bridge.Response:
+	return _record("get_budget", [], context)
+
+
+func buy_stock(purchase: Dictionary, context: Dictionary) -> Bridge.Response:
 	return _record("buy_stock", [purchase], context)
 
 

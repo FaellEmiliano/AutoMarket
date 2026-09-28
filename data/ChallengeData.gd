@@ -12,6 +12,10 @@ var payment : float = 0
 
 var requested_items = []
 
+var cart : Dictionary = {}
+
+var price_snapshot : Dictionary = {}
+
 var requires_stock : bool = false
 
 var applies_discount : bool = false

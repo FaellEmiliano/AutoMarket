@@ -62,12 +62,12 @@ func show_request_dialog(new_challenge) -> void:
 # GERA TEXTO DO PEDIDO
 # =========================
 func gerar_texto_pedido(inputs):
+	if challenge.requires_stock:
+		var texto_estoque = gerar_texto_ingredientes(challenge.requested_items)
+		return texto_estoque
+
 	if inputs.size() < 2:
 		return "Tenho um pedido aqui."
-
-	if challenge.requires_stock:
-		var texto_estoque = gerar_texto_ingredientes(challenge.requested_items, inputs)
-		return texto_estoque
 
 	if challenge.type == "compra_variavel":
 		var partes = []
@@ -90,16 +90,14 @@ func gerar_texto_pedido(inputs):
 
 	return texto
 
-func gerar_texto_ingredientes(items: Array, inputs: Array) -> String:
+func gerar_texto_ingredientes(items: Array) -> String:
 	var linhas = ["Vou levar isso aqui:"]
-	for i in range(items.size()):
-		var item = items[i]
-		var price_index = i * 2
-		var price = inputs[price_index] if price_index < inputs.size() else 0.0
-		linhas.append("%dx %s, R$ %s cada" % [
+	for item in items:
+		linhas.append("[%d] %dx %s, R$ %s cada" % [
+			int(item.get("code", 0)),
 			int(item.get("quantity", 0)),
 			str(item.get("name", "")),
-			formatar(price)
+			formatar(float(item.get("unit_price", 0.0)))
 		])
 	linhas.append("Quanto fica tudo?")
 	return "\n".join(linhas)

@@ -30,7 +30,7 @@ func _ready() -> void:
 	_test_python_like_per_script_budget(manager)
 	_test_python_like_global_budget(manager)
 	await _test_python_like_lifecycle_and_isolation(manager)
-	await _test_await_requires_stock(manager)
+	await _test_wait_available_initially(manager)
 	FeatureManager.unlock_feature(FeatureManager.FEATURE_STOCK)
 	await _test_python_like_real_builtins(manager)
 	await _test_python_like_wait_lifecycle(manager)
@@ -38,6 +38,7 @@ func _ready() -> void:
 	await _test_python_like_wait_stop_and_isolation(manager)
 	await _test_infinite_print_does_not_freeze(manager)
 	await _test_two_infinite_scripts_share_frames(manager)
+	_test_round_robin_prevents_starvation(manager)
 	await _test_stop_one_runtime(manager)
 	await _test_error_stops_only_one_runtime(manager)
 	await _test_get_stock_loop(manager)
@@ -73,11 +74,11 @@ func _test_language_backend_factory() -> void:
 
 
 func _test_language_routing(manager) -> void:
-	var runtime_id: String = manager.start_script("default_language", "int main(){ print(\"ok\"); }", "DefaultLanguage")
+	var runtime_id: String = manager.start_script("default_language", "print(\"ok\")\n", "DefaultLanguage")
 	await _wait_until_not_running(manager, "default_language")
 	var runtime: Dictionary = manager.get_runtime(runtime_id)
-	_check(str(runtime.get("language", "")) == "c_like", "Ausência de linguagem deve usar C-like.")
-	_check(str(runtime.get("status", "")) == ScriptRuntimeManager.STATUS_FINISHED, "Script C-like simples deve continuar executando.")
+	_check(str(runtime.get("language", "")) == "python_like", "Ausência de linguagem deve usar Python-like.")
+	_check(str(runtime.get("status", "")) == ScriptRuntimeManager.STATUS_FINISHED, "Script Python-like simples deve continuar executando.")
 
 	_debug_text = ""
 	runtime_id = manager.start_script(
@@ -112,6 +113,15 @@ func _test_language_routing(manager) -> void:
 	var active_runtime: Dictionary = InterpreterSystem.runtime_manager.get_runtime(active_runtime_id)
 	_check(str(active_runtime.get("language", "")) == "python_like", "Runtime iniciado pelo documento deve manter a linguagem explícita.")
 	_check(str(active_runtime.get("status", "")) == ScriptRuntimeManager.STATUS_FINISHED, "Documento Python-like ativo deve concluir normalmente.")
+
+	active_script["language"] = "c_like"
+	active_script["source"] = "int main(){ print(1); }"
+	_debug_text = ""
+	var legacy_runtime_id := InterpreterSystem.start_active_script(EnvContext.new([], 0, []))
+	_check(legacy_runtime_id.is_empty(), "InterpreterSystem não deve executar scripts C-like legados pelo gameplay.")
+	_check(_debug_text.contains("legado") and _debug_text.contains("Python-like"), "Script legado bloqueado deve orientar a reescrita.")
+	active_script["language"] = original_language
+	active_script["source"] = original_source
 
 
 func _test_structured_diagnostics(manager) -> void:
@@ -179,6 +189,29 @@ func _test_python_like_global_budget(manager) -> void:
 	manager.global_operations_per_frame = previous_global
 
 
+func _test_round_robin_prevents_starvation(manager) -> void:
+	var previous_per_script: int = manager.operations_per_frame_per_script
+	var previous_global: int = manager.global_operations_per_frame
+	manager.set_process(false)
+	manager.operations_per_frame_per_script = 2
+	manager.global_operations_per_frame = 2
+	for index in range(6):
+		manager.start_script(
+			"fair_%d" % index, "while True:\n    x = 1\n",
+			"Fair%d" % index, null, "python_like"
+		)
+	for _frame in range(12):
+		manager._process(0.0)
+	for index in range(6):
+		var runtime: Dictionary = manager.get_runtime_by_script_id("fair_%d" % index)
+		_check(int(runtime.get("operations_total", 0)) > 0,
+			"Rodízio global deve impedir starvation do runtime %d." % index)
+		manager.stop_script("fair_%d" % index)
+	manager.operations_per_frame_per_script = previous_per_script
+	manager.global_operations_per_frame = previous_global
+	manager.set_process(true)
+
+
 func _test_python_like_lifecycle_and_isolation(manager) -> void:
 	manager.start_script("python_a", "x = 1\nprint(x)\n", "PythonA", null, "python_like")
 	manager.start_script("python_b", "x = 2\nprint(x)\n", "PythonB", null, "python_like")
@@ -215,15 +248,15 @@ func _test_python_like_real_builtins(manager) -> void:
 	SensorSystem.set_sensor("python_sensor", 42)
 	manager.start_script("python_stock", """
 print(sensor("python_sensor"))
-print(get_stock()[0])
-buy_stock([1, 0, 0, 0, 0, 0])
-print(get_stock()[0])
+print(get_stock()[101])
+buy_stock({101: 5})
+print(get_stock()[101])
 """, "PythonStock", null, "python_like")
 	await _wait_until_not_running(manager, "python_stock")
 	var stock_runtime: Dictionary = manager.get_runtime_by_script_id("python_stock")
 	_check(str(stock_runtime.get("status", "")) == ScriptRuntimeManager.STATUS_FINISHED, "Built-ins reais de sensor e estoque devem concluir no Python-like.")
-	_check(str(stock_runtime.get("output", "")).contains("[PythonStock] 42") and str(stock_runtime.get("output", "")).contains("[PythonStock] 1"), "sensor/get_stock devem retornar valores reais ao Python-like.")
-	_check(StockSystem.get_stock()[0].quantity == 1 and GameManager.money == 97, "buy_stock Python-like deve aplicar estoque e dinheiro pelas regras reais.")
+	_check(str(stock_runtime.get("output", "")).contains("[PythonStock] 42") and str(stock_runtime.get("output", "")).contains("[PythonStock] 5"), "sensor/get_stock devem retornar valores reais ao Python-like.")
+	_check(StockSystem.get_stock()[0].quantity == 5 and GameManager.money == 85, "buy_stock Python-like deve aplicar estoque e dinheiro pelas regras reais.")
 
 	_last_client_result = false
 	_start_fake_transaction([5], [5])
@@ -401,7 +434,7 @@ func _test_python_like_delivery_boundary() -> void:
 
 func _test_infinite_print_does_not_freeze(manager) -> void:
 	_debug_text = ""
-	manager.start_script("principal_a", "int main(){ while (1) { print(\"A\"); } }", "Principal")
+	manager.start_script("principal_a", "while True:\n    print(\"A\")\n", "Principal")
 	await _wait_frames(3)
 	_check(manager.is_script_running("principal_a"), "Loop infinito com print deve continuar rodando sem travar.")
 	_check(_debug_text.contains("[Principal] A"), "Output do loop infinito deve indicar origem Principal.")
@@ -412,8 +445,8 @@ func _test_infinite_print_does_not_freeze(manager) -> void:
 
 func _test_two_infinite_scripts_share_frames(manager) -> void:
 	_debug_text = ""
-	manager.start_script("principal", "int main(){ while (1) { print(\"A\"); } }", "Principal")
-	manager.start_script("estoque", "int main(){ while (1) { print(\"B\"); } }", "Estoque")
+	manager.start_script("principal", "while True:\n    print(\"A\")\n", "Principal")
+	manager.start_script("estoque", "while True:\n    print(\"B\")\n", "Estoque")
 	await _wait_frames(3)
 	_check(manager.is_script_running("principal"), "Principal deve permanecer rodando.")
 	_check(manager.is_script_running("estoque"), "Estoque deve rodar ao mesmo tempo que Principal.")
@@ -422,7 +455,7 @@ func _test_two_infinite_scripts_share_frames(manager) -> void:
 
 
 func _test_error_stops_only_one_runtime(manager) -> void:
-	manager.start_script("erro_estoque", "int main(){ print(variavel_inexistente); }", "Estoque")
+	manager.start_script("erro_estoque", "print(variavel_inexistente)\n", "Estoque")
 	await _wait_until_not_running(manager, "erro_estoque")
 
 	var estoque_runtime: Dictionary = manager.get_runtime_by_script_id("erro_estoque")
@@ -448,7 +481,7 @@ func _test_stop_all(manager) -> void:
 
 func _test_finished_runtime(manager) -> void:
 	_debug_text = ""
-	manager.start_script("finito", "int main(){ print(\"inicio\"); print(\"fim\"); }", "Finito")
+	manager.start_script("finito", "print(\"inicio\")\nprint(\"fim\")\n", "Finito")
 	await _wait_until_not_running(manager, "finito")
 	var runtime: Dictionary = manager.get_runtime_by_script_id("finito")
 	_check(str(runtime.get("status", "")) == "finished", "Script finito deve ficar finished.")
@@ -457,11 +490,11 @@ func _test_finished_runtime(manager) -> void:
 
 func _test_restarting_script_replaces_previous_output(manager) -> void:
 	_debug_text = ""
-	manager.start_script("reload", "int main(){ print(variavel_inexistente); }", "Reload")
+	manager.start_script("reload", "print(variavel_inexistente)\n", "Reload")
 	await _wait_until_not_running(manager, "reload")
 	_check(_debug_text.contains("variavel_inexistente"), "Primeira execucao deve mostrar o erro.")
 
-	manager.start_script("reload", "int main(){ print(\"ok\"); }", "Reload")
+	manager.start_script("reload", "print(\"ok\")\n", "Reload")
 	await _wait_until_not_running(manager, "reload")
 	_check(_debug_text.contains("[Reload] ok"), "Nova execucao deve mostrar a saida atual.")
 	_check(not _debug_text.contains("variavel_inexistente"), "Nova execucao nao deve manter erro antigo da mesma aba.")
@@ -471,13 +504,9 @@ func _test_get_stock_loop(manager) -> void:
 	_debug_text = ""
 	_set_quantities([4, 0, 0, 0, 0, 0])
 	manager.start_script("stock_loop", """
-int main() {
-	while (1) {
-		int estoque[6];
-		estoque = get_stock();
-		print(estoque[0]);
-	}
-}
+while True:
+    estoque = get_stock()
+    print(estoque[101])
 """, "EstoqueLoop")
 	await _wait_frames(3)
 	_check(manager.is_script_running("stock_loop"), "Loop com get_stock() deve continuar rodando.")
@@ -490,18 +519,12 @@ func _test_buy_stock(manager) -> void:
 	_reset_stock()
 	GameManager.money = 100
 	manager.start_script("buy_stock", """
-int main() {
-	int compra[6];
-	for (int i = 0; i < 6; i++) {
-		compra[i] = 0;
-	}
-	compra[0] = 1;
-	buy_stock(compra);
-}
+compra = {101: 5}
+buy_stock(compra)
 """, "Compra")
 	await _wait_until_not_running(manager, "buy_stock")
-	_check(StockSystem.get_stock()[0].quantity == 1, "buy_stock() deve aplicar a compra.")
-	_check(GameManager.money == 97, "buy_stock() deve descontar dinheiro.")
+	_check(StockSystem.get_stock()[0].quantity == 5, "buy_stock() deve aplicar a compra.")
+	_check(GameManager.money == 85, "buy_stock() deve descontar dinheiro.")
 	_check(manager.is_script_running("principal"), "buy_stock() nao pode parar outros scripts.")
 
 
@@ -509,16 +532,12 @@ func _test_script_can_use_input_and_send(manager) -> void:
 	_last_client_result = false
 	_start_fake_transaction([2, 3], [5])
 	manager.start_script("input_send_runner", """
-int main() {
-	while (1) {
-		if (sensor("cliente_na_tela") == true) {
-			float x = input();
-			float y = input();
-			send(x + y);
-		}
-		await(0.1);
-	}
-}
+while True:
+    if sensor("cliente_na_tela") == True:
+        x = input()
+        y = input()
+        send(x + y)
+    wait(0.1)
 """, "InputSend")
 	await _wait_frames(6)
 	_check(manager.is_script_running("input_send_runner"), "Script com input/send deve continuar rodando depois do atendimento.")
@@ -529,32 +548,25 @@ int main() {
 
 func _test_await_sleeps_runtime(manager) -> void:
 	_debug_text = ""
-	manager.start_script("waiter", "int main(){ while (1) { print(\"tick\"); await(1); } }", "Waiter")
+	manager.start_script("waiter", "while True:\n    print(\"tick\")\n    wait(1)\n", "Waiter")
 	await _wait_frames(3)
 	var runtime: Dictionary = manager.get_runtime_by_script_id("waiter")
-	_check(str(runtime.get("status", "")) == "sleeping", "await(1) deve colocar o runtime em sleeping.")
-	_check(_debug_text.contains("[Waiter] tick"), "await() deve permitir imprimir antes de dormir.")
+	_check(str(runtime.get("status", "")) == "sleeping", "wait(1) deve colocar o runtime em sleeping.")
+	_check(_debug_text.contains("[Waiter] tick"), "wait() deve permitir imprimir antes de dormir.")
 	manager.stop_script("waiter")
 	await get_tree().process_frame
 
 
-func _test_await_requires_stock(manager) -> void:
-	_debug_text = ""
-	manager.start_script("locked_await", "int main(){ await(0.1); }", "AwaitBloqueado")
-	await _wait_until_not_running(manager, "locked_await")
-	_check(_debug_text.contains("Compre o upgrade Abrir estoque"), "await() deve informar qual upgrade libera a função.")
-	manager.start_script(
-		"locked_python_wait", "wait(0.1)\n", "WaitPythonBloqueado", null, "python_like"
-	)
-	await _wait_until_not_running(manager, "locked_python_wait")
-	var runtime: Dictionary = manager.get_runtime_by_script_id("locked_python_wait")
-	_check(str(runtime.get("status", "")) == ScriptRuntimeManager.STATUS_ERROR
-		and str(runtime.get("error", "")).contains("AUTOMARKET_FEATURE_LOCKED"),
-		"wait Python-like deve preservar o bloqueio de progressão do runtime atual.")
+func _test_wait_available_initially(manager) -> void:
+	manager.start_script("initial_wait", "wait(0)\n", "WaitInicial", null, "python_like")
+	await _wait_until_not_running(manager, "initial_wait")
+	var runtime: Dictionary = manager.get_runtime_by_script_id("initial_wait")
+	_check(str(runtime.get("status", "")) == ScriptRuntimeManager.STATUS_FINISHED,
+		"wait() deve estar disponível desde o início da automação integrada.")
 
 
 func _infinite_script() -> String:
-	return "int main(){ while (1) { } }"
+	return "while True:\n    x = 1\n"
 
 
 func _wait_until_not_running(manager, script_id: String) -> void:

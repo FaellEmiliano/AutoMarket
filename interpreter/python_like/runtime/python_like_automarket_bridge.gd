@@ -63,8 +63,14 @@ func read_sensor(_name: String, _context: Dictionary) -> Response:
 func get_stock(_context: Dictionary) -> Response:
 	return _unsupported("get_stock")
 
+func product_table(_context: Dictionary) -> Response:
+	return _unsupported("tabela_produtos")
 
-func buy_stock(_purchase: Array, _context: Dictionary) -> Response:
+func get_budget(_context: Dictionary) -> Response:
+	return _unsupported("get_budget")
+
+
+func buy_stock(_purchase: Dictionary, _context: Dictionary) -> Response:
 	return _unsupported("buy_stock")
 
 
