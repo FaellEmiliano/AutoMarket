@@ -66,6 +66,9 @@ func get_stock(_context: Dictionary) -> Response:
 func product_table(_context: Dictionary) -> Response:
 	return _unsupported("tabela_produtos")
 
+func promotions(_context: Dictionary) -> Response:
+	return _unsupported("promocoes")
+
 func get_budget(_context: Dictionary) -> Response:
 	return _unsupported("get_budget")
 

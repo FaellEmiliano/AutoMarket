@@ -135,19 +135,61 @@ func consume_items(items: Array, request_save := true) -> bool:
 	EventBus.emit_signal("get_estoque")
 	return true
 
-func pick_requestable_items(max_kinds: int) -> Array:
+func pick_requestable_items(max_kinds: int, promotions: Array = [], mode_override: Variant = -1) -> Array:
 	_initialize_stock()
 	var available = estoque.filter(func(item): return item.quantity > 0)
 	if available.is_empty():
 		return []
 	available.shuffle()
+	var priority: Array = []
+	var rules_by_code := {}
+	var modes_by_code := {}
+	for rule in promotions:
+		var code := int(rule["produto"])
+		var promoted = null
+		for item in available:
+			if item.code == code:
+				promoted = item
+				break
+		if promoted == null:
+			continue
+		# Roll each product independently: applied / below threshold / absent.
+		# Percentage has no threshold, so its only modes are present and absent.
+		var percentage: bool = rule["tipo"] == "percentual"
+		var forced: int = int(mode_override.get(code, -1)) if mode_override is Dictionary else int(mode_override)
+		var mode: int = forced if forced in [0, 1, 2] else (randi_range(0, 1) * 2 if percentage else randi_range(0, 2))
+		if percentage and mode == 1:
+			mode = 0
+		if not percentage and int(promoted.quantity) < int(rule["leve"]) and mode == 0:
+			mode = 1
+		# Keep a physical cart possible even when stock only contains promoted products.
+		if mode == 2 and available.size() + priority.size() == 1:
+			mode = 0 if percentage else 1
+		available.erase(promoted)
+		if mode == 2:
+			continue
+		priority.append(promoted)
+		rules_by_code[code] = rule
+		modes_by_code[code] = mode
+	available = priority + available
 	var requested = []
 	for i in range(min(max_kinds, available.size())):
 		var item = available[i]
+		var max_quantity: int = mini(2, int(item.quantity))
+		var rule: Dictionary = rules_by_code.get(item.code, {})
+		var mode: int = int(modes_by_code.get(item.code, -1))
+		if rule.get("tipo", "") == "leve_pague":
+			var take := int(rule["leve"])
+			max_quantity = mini(take, int(item.quantity))
+			if mode == 1:
+				max_quantity = mini(take - 1, max_quantity)
+		var quantity := randi_range(1, max_quantity)
+		if rule.get("tipo", "") == "leve_pague" and mode == 0:
+			quantity = int(rule["leve"])
 		requested.append({
 			"code": item.code,
 			"name": item.name,
-			"quantity": randi_range(1, min(2, item.quantity)),
+			"quantity": quantity,
 			"unit_price": item.sale_price
 		})
 	return requested

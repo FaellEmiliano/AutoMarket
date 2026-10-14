@@ -64,30 +64,22 @@ func _setup_dialogs() -> void:
 	add_child(_delete_dialog)
 
 func open_document(kind: String, id: String) -> void:
+	if kind == "help":
+		status_label.text = "Consulte os comandos e desafios na guia Ajuda."
+		return
 	if kind == "script" and _is_hidden_legacy_script(id):
 		return
 	empty_state.hide()
-	if kind == "help":
-		if not documentation.show_topic(id):
-			status_label.text = "Documentação bloqueada · avance no mercado para liberar."
-			return
-		_save_editor_to_active_script()
-		_remember_caret()
-		code_edit.hide()
-		documentation.show()
-		find_bar.hide()
-	elif kind == "script":
+	if kind == "script":
 		_save_editor_to_active_script()
 		_remember_caret()
 		InterpreterSystem.set_active_script(id)
 		_load_active_script_into_editor()
 		code_edit.show()
-		documentation.hide()
 	else:
 		_save_editor_to_active_script()
 		_remember_caret()
 		code_edit.hide()
-		documentation.hide()
 		find_bar.hide()
 		empty_state.show()
 	tabs.activate(kind, id)
@@ -107,7 +99,6 @@ func _sync_documents() -> void:
 	if _loaded_id != id:
 		_load_active_script_into_editor()
 		code_edit.show()
-		documentation.hide()
 		empty_state.hide()
 		tabs.active_kind = "script"
 		tabs.active_id = id
@@ -196,7 +187,6 @@ func _on_run_all_pressed() -> void:
 
 func _update_status() -> void:
 	var running := InterpreterSystem.is_script_running(_loaded_id)
-	var help_active: bool = tabs.active_kind == "help"
 	var script_active: bool = tabs.active_kind == "script"
 	var legacy_active := script_active and InterpreterSystem.is_legacy_script(_loaded_id)
 	run_button.disabled = not script_active or running or legacy_active
@@ -211,22 +201,19 @@ func _update_status() -> void:
 	output.stop_all_button.disabled = InterpreterSystem.get_running_runtimes().is_empty()
 	var state := str(InterpreterSystem.get_runtime_by_script_id(_loaded_id).get("status", "stopped"))
 	var runtime := InterpreterSystem.get_runtime_by_script_id(_loaded_id)
-	if help_active:
-		status_label.text = "Documentação · somente leitura"
-	elif legacy_active:
+	if legacy_active:
 		status_label.text = "C-like legado · reescreva em Python-like para executar"
 	elif script_active:
 		status_label.text = "Python-like   ·   %s" % Explorer.STATES.get(state, "PARADO")
 	else:
 		status_label.text = "Nenhum documento aberto"
 	status_label.theme_type_variation = &"Label"
-	if not help_active:
-		if state == "error":
-			status_label.theme_type_variation = &"IDEError"
-		elif state == "sleeping":
-			status_label.theme_type_variation = &"IDESleeping"
-		elif running:
-			status_label.theme_type_variation = &"IDEWorking"
+	if state == "error":
+		status_label.theme_type_variation = &"IDEError"
+	elif state == "sleeping":
+		status_label.theme_type_variation = &"IDESleeping"
+	elif running:
+		status_label.theme_type_variation = &"IDEWorking"
 	if not script_active or state != "error" or str(runtime.get("source", "")) != code_edit.text:
 		code_edit.clear_diagnostics()
 	else:

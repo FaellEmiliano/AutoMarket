@@ -1405,6 +1405,7 @@ func _register_standard_builtins(environment) -> RuntimeResult:
 		["send", 0, -1, Callable(self, "_builtin_automarket_send")],
 		["sensor", 1, 1, Callable(self, "_builtin_automarket_sensor")],
 		["tabela_produtos", 0, 0, Callable(self, "_builtin_automarket_product_table")],
+		["promocoes", 0, 0, Callable(self, "_builtin_automarket_promotions")],
 		["get_stock", 0, 0, Callable(self, "_builtin_automarket_get_stock")],
 		["get_budget", 0, 0, Callable(self, "_builtin_automarket_get_budget")],
 		["buy_stock", 1, 1, Callable(self, "_builtin_automarket_buy_stock")],
@@ -1516,6 +1517,11 @@ func _builtin_automarket_product_table(_arguments: Array) -> RuntimeResult:
 	if not _has_automarket_bridge():
 		return _bridge_unavailable("tabela_produtos")
 	return _finish_bridge_call(_automarket_bridge.product_table(_automarket_context()))
+
+func _builtin_automarket_promotions(_arguments: Array) -> RuntimeResult:
+	if not _has_automarket_bridge():
+		return _bridge_unavailable("promocoes")
+	return _finish_bridge_call(_automarket_bridge.promotions(_automarket_context()))
 
 func _builtin_automarket_get_budget(_arguments: Array) -> RuntimeResult:
 	if not _has_automarket_bridge():

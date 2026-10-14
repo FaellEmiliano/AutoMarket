@@ -58,7 +58,8 @@ func _run_tests() -> void:
 	Saves.solicitar_save("teste_delivery_slot_1")
 	Saves.load_game(2)
 	Saves.load_game(1)
-	_check(FeatureManager.has_feature(FeatureManager.FEATURE_DELIVERY), "Save deve restaurar o desbloqueio do Delivery.")
+	var delivery_active := ActiveExperience.is_upgrade_active("delivery_online")
+	_check(FeatureManager.has_feature(FeatureManager.FEATURE_DELIVERY) == delivery_active, "Save deve restaurar Delivery conforme a experiencia ativa.")
 	_check(DeliverySystem.state == DeliverySystem.State.WAITING_DECLARATION, "Save deve restaurar o estado do relatório ativo.")
 	_check(DeliverySystem.active_deliveries == [0, 3, 2], "Save deve restaurar as entregas do relatório ativo.")
 
@@ -83,6 +84,8 @@ func _backup_slot_files() -> void:
 	for slot in range(1, Saves.SLOT_COUNT + 1):
 		var path := Saves.get_save_path(slot)
 		_backups[path] = _read_file_bytes(path)
+		var legacy_path := Saves.LEGACY_SLOT_PATH % slot
+		_backups[legacy_path] = _read_file_bytes(legacy_path)
 
 func _restore_slot_files() -> void:
 	for path in _backups:

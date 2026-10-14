@@ -2,7 +2,6 @@ extends TabBar
 
 signal document_selected(kind: String, id: String)
 const CLOSE = preload("res://assets/icons/ide_close.svg")
-const HelpProgressData = preload("res://systems/HelpProgress.gd")
 const ActiveExperienceData = preload("res://data/ActiveExperience.gd")
 const STATE_ICONS := {
 	"running": preload("res://assets/icons/ide_running.svg"),
@@ -25,6 +24,7 @@ func _ready() -> void:
 func refresh() -> void:
 	_syncing = true
 	clear_tabs()
+	help_ids.clear()
 	var existing_ids: Array[String] = []
 	for document in InterpreterSystem.get_scripts():
 		var document_id := str(document.id)
@@ -38,10 +38,6 @@ func refresh() -> void:
 	for document in InterpreterSystem.get_scripts():
 		if not _is_hidden_legacy_script(str(document.id)) and open_script_ids.has(str(document.id)):
 			_add_document("script", str(document.id), str(document.title))
-	for id in help_ids:
-		for topic in HelpTopics.TOPICS:
-			if HelpProgressData.is_topic_active(topic) and str(topic.id) == id:
-				_add_document("help", id, str(topic.title) + " — Documentação")
 	_syncing = false
 
 func _is_hidden_legacy_script(id: String) -> bool:
@@ -58,13 +54,12 @@ func _add_document(kind: String, id: String, title: String) -> void:
 		current_tab = index
 
 func activate(kind: String, id: String) -> void:
+	if kind == "help":
+		return
 	active_kind = kind
 	active_id = id
 	if kind == "script" and not open_script_ids.has(id):
 		open_script_ids.append(id)
-		refresh()
-	if kind == "help" and not help_ids.has(id):
-		help_ids.append(id)
 		refresh()
 	_syncing = true
 	for index in range(get_tab_count()):

@@ -19,7 +19,7 @@ signal game_completed_changed(completed)
 var unlocked_mechanics = {
 	"sum": true,
 	"cart": true,
-	"discount": true,
+	"discount": false,
 	"change": false,
 	"stock": true,
 	"if": true,

@@ -41,6 +41,12 @@ func get_stock(_context: Dictionary) -> Response:
 func product_table(_context: Dictionary) -> Response:
 	return BridgeContract.Response.succeeded(StockSystem.get_product_table().duplicate(true))
 
+func promotions(_context: Dictionary) -> Response:
+	var challenge = TransactionManager.active_challenge
+	if challenge == null or not FeatureManager.has_feature(FeatureManager.FEATURE_DISCOUNT):
+		return BridgeContract.Response.succeeded([])
+	return BridgeContract.Response.succeeded(challenge.promotions.duplicate(true))
+
 func get_budget(_context: Dictionary) -> Response:
 	return BridgeContract.Response.succeeded(StockSystem.get_budget())
 

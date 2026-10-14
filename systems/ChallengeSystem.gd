@@ -4,6 +4,7 @@ signal integrated_challenge_progress(progress: Dictionary)
 signal integrated_challenge_completed(progress: Dictionary)
 
 const ProductCatalogData = preload("res://data/ProductCatalog.gd")
+const PromotionCatalogData = preload("res://data/PromotionCatalog.gd")
 const INTEGRATED_CHALLENGE_ID := "mercado_automatizado"
 const REQUIRED_VALID_SALES := 3
 const RECOVERY_WINDOW_SALES := 2
@@ -103,6 +104,8 @@ func _automation_is_running() -> bool:
 # ─── Helpers matemáticos ──────────────────────────────────────────────────────
 
 func arredondar(valor, casas):
+	if casas == 2:
+		return PromotionCatalogData.round_money(float(valor))
 	var fator = pow(10, casas)
 	return round(valor * fator) / fator
 
@@ -145,28 +148,42 @@ func set_context() -> ChallengeData:
 # ─── Pipeline de geração ─────────────────────────────────────────────────────
 
 func _build_challenge(options := {}) -> ChallengeData:
-	var challenge = _create_base_challenge(options)
+	var promotions: Array = []
+	if bool(options.get("stock_only", false)) and FeatureManager.has_feature(FeatureManager.FEATURE_DISCOUNT):
+		var forced: Variant = options.get("promotion", null)
+		if forced != null:
+			# Accept the previous single-rule hook as well as complete forced snapshots.
+			assert(forced is Dictionary or forced is Array)
+			var forced_rules: Array = [forced] if forced is Dictionary else forced
+			assert(not forced_rules.is_empty() and bool(PromotionCatalogData.validate_rules(forced_rules).get("ok", false)))
+			promotions = forced_rules.duplicate(true)
+		else:
+			promotions = PromotionCatalogData.generate_promotions()
+	var challenge = _create_base_challenge(options, promotions)
 	if challenge == null:
 		return null
+	challenge.promotions = promotions.duplicate(true)
 
-	if not bool(options.get("stock_only", false)):
+	if bool(options.get("stock_only", false)):
+		_apply_change_modifier(challenge, {})
+	else:
 		_apply_customer_tier(challenge, options)
 		_apply_discount_modifier(challenge, options)
 		_apply_change_modifier(challenge, options)
 	_finalize_challenge(challenge)
 	return challenge
 
-func _create_base_challenge(options: Dictionary) -> ChallengeData:
+func _create_base_challenge(options: Dictionary, promotions: Array = []) -> ChallengeData:
 	var forced_base = str(options.get("base", ""))
 	if forced_base == "estoque":
-		return _create_stock_base()
+		return _create_stock_base(promotions)
 	if forced_base == "compra_variavel":
 		return _create_variable_base()
 	if forced_base == "soma":
 		return _create_sum_base()
 
 	if FeatureManager.has_feature(FeatureManager.FEATURE_STOCK):
-		return _create_stock_base()
+		return _create_stock_base(promotions)
 	if FeatureManager.has_feature(FeatureManager.FEATURE_CART):
 		return _create_variable_base()
 	return _create_sum_base()
@@ -188,8 +205,8 @@ func _create_variable_base() -> ChallengeData:
 		challenge.values.append(arredondar(randf_range(8.0, 28.0), 2))
 	return challenge
 
-func _create_stock_base() -> ChallengeData:
-	var requested_items = StockSystem.pick_requestable_items(2)
+func _create_stock_base(promotions: Array = []) -> ChallengeData:
+	var requested_items = StockSystem.pick_requestable_items(2, promotions)
 	if requested_items.is_empty():
 		return null
 
@@ -226,8 +243,10 @@ func _apply_change_modifier(challenge: ChallengeData, options: Dictionary) -> vo
 func _finalize_challenge(challenge: ChallengeData) -> void:
 	var bruto = _calcular_total_carrinho(challenge.requested_items) if challenge.requires_stock else _calcular_total(challenge.values)
 	var total_final = bruto
+	if challenge.requires_stock:
+		total_final = PromotionCatalogData.calculate_total(challenge.requested_items, challenge.promotions)
 	if challenge.applies_discount:
-		total_final = _aplicar_desconto_carrinho(bruto)
+		total_final = _aplicar_desconto_carrinho(total_final)
 	total_final = arredondar(total_final, 2)
 
 	challenge.expected_output = [total_final]
@@ -240,17 +259,25 @@ func _finalize_challenge(challenge: ChallengeData) -> void:
 	order.total = total_final
 	order.items = challenge.requested_items.duplicate(true) if challenge.requires_stock else challenge.values.duplicate()
 
-	var inputs = [challenge.cart.duplicate(true)] if challenge.requires_stock else challenge.values.duplicate()
-	if challenge.type == "compra_variavel":
-		inputs.append(-1)
-
 	if challenge.payment > 0:
-		challenge.payment = arredondar(total_final + randf_range(10.0, 30.0), 2)
+		challenge.payment = _escolher_pagamento(total_final) if challenge.requires_stock else arredondar(total_final + randf_range(10.0, 30.0), 2)
 		var troco = arredondar(_calcular_troco(challenge.payment, total_final), 2)
 		challenge.expected_output.append(troco)
 		order.payment = challenge.payment
 		order.change = troco
-		inputs.append(challenge.payment)
+
+	var inputs: Array = []
+	if challenge.requires_stock:
+		var pedido := {"carrinho": challenge.cart.duplicate(true)}
+		if challenge.payment > 0:
+			pedido["pagamento"] = challenge.payment
+		inputs.append(pedido)
+	else:
+		inputs = challenge.values.duplicate()
+		if challenge.type == "compra_variavel":
+			inputs.append(-1)
+		if challenge.payment > 0:
+			inputs.append(challenge.payment)
 
 	challenge.order = order
 	challenge.env_context = EnvContext.new(
@@ -261,6 +288,12 @@ func _finalize_challenge(challenge: ChallengeData) -> void:
 
 	GameManager.current_context = challenge
 	EventBus.emit_signal("update_context", challenge)
+
+func _escolher_pagamento(total: float) -> float:
+	for nota in [10.0, 20.0, 30.0, 50.0, 100.0]:
+		if total < nota:
+			return nota
+	return ceilf((total + 0.01) / 50.0) * 50.0
 
 func _calculate_reward(challenge: ChallengeData) -> int:
 	var reward = get_reward(challenge.type)
@@ -300,8 +333,11 @@ func generate_variable_purchase_challenge(item_values: Array = [], apply_discoun
 		return challenge
 	return _build_challenge({"base": "compra_variavel", "discount": apply_discount})
 
-func generate_stock_challenge() -> ChallengeData:
-	return _build_challenge({"base": "estoque", "stock_only": true})
+func generate_stock_challenge(promotion: Variant = null) -> ChallengeData:
+	var options := {"base": "estoque", "stock_only": true}
+	if promotion != null:
+		options["promotion"] = promotion
+	return _build_challenge(options)
 
 func generate_change_challenge(apply_discount := false, is_golden := false) -> ChallengeData:
 	return _build_challenge({"change": true, "discount": apply_discount, "golden": is_golden})

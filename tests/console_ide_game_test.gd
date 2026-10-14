@@ -9,6 +9,7 @@ class TestSaves extends "res://autoload/SaveManager.gd":
 		return "user://ide_qa_slot_%d.json" % slot
 
 const GameScene = preload("res://scenes/game/game.tscn")
+const ActiveExperienceData = preload("res://data/ActiveExperience.gd")
 var failures: Array[String] = []
 var _original_save_script: Script
 var game
@@ -26,20 +27,25 @@ func _ready() -> void:
 	await get_tree().process_frame
 	menu = game.script_menu
 	ide = menu.get_console_editor()
-	var tutorial = game.get_node("TutorialOverlay")
-	_check(tutorial.console_editor == ide, "Tutorial resolve IDE")
-	tutorial._enter_step(1)
-	menu.toggle_button.button_pressed = true
-	await get_tree().process_frame
-	_check(tutorial.current_step == 1 and menu.is_aberto(), "Tutorial curto abre a IDE sem avançar sozinho")
-	_check(menu.workspace_layer.layer == 21, "IDE acompanha highlight do tutorial")
-	tutorial._enter_step(3)
-	_check(not menu.is_minimizado(), "Tutorial keeps the IDE full screen")
-	_check(ide.get_code_text() == "print(\"Hello, World!\")\n", "IDE abre o Hello World simples do arquivo Principal")
-	await _capture("tutorial")
-	tutorial._finish_tutorial()
-	await get_tree().process_frame
-	_check(menu.workspace_layer.layer == 5, "Highlight restaura layer")
+	var tutorial = game.get_node_or_null("TutorialOverlay")
+	if ActiveExperienceData.SHOW_LEGACY_TUTORIAL:
+		_check(tutorial != null, "Experiência com tutorial deve instanciá-lo")
+		if tutorial != null:
+			_check(tutorial.console_editor == ide, "Tutorial resolve IDE")
+			tutorial._enter_step(1)
+			menu.toggle_button.button_pressed = true
+			await get_tree().process_frame
+			_check(tutorial.current_step == 1 and menu.is_aberto(), "Tutorial curto abre a IDE sem avançar sozinho")
+			_check(menu.workspace_layer.layer == 21, "IDE acompanha highlight do tutorial")
+			tutorial._enter_step(3)
+			_check(not menu.is_minimizado(), "Tutorial keeps the IDE full screen")
+			_check(ide.get_code_text() == "print(\"Hello, World!\")\n", "IDE abre o Hello World simples do arquivo Principal")
+			await _capture("tutorial")
+			tutorial._finish_tutorial()
+			await get_tree().process_frame
+			_check(menu.workspace_layer.layer == 5, "Highlight restaura layer")
+	else:
+		_check(tutorial == null, "Tutorial legado permanece fora da experiência ativa")
 	menu.set_aberto(false)
 	menu.toggle_button.button_pressed = true
 	await get_tree().process_frame
@@ -70,9 +76,18 @@ func _ready() -> void:
 	_check(menu.is_aberto(), "Escape autocomplete não fecha IDE")
 	ide.set_code_text(c_source)
 	ide.open_document("help", "terminal")
-	await get_tree().process_frame
-	await _capture("documentation")
-	ide.open_document("script", str(InterpreterSystem.get_active_script().id))
+	_check(ide.tabs.active_kind == "script" and ide.get_code_text() == c_source, "Ajuda não abre uma aba duplicada nem altera o código")
+	menu.set_aberto(false)
+	game.get_node("HUD/ColorRect/HelpButton").pressed.emit()
+	_check(game.help_menu.visible, "Botão do jogo abre a guia Ajuda")
+	game.help_menu.open_topic("product_table")
+	_check(game.help_menu.get_node("%BodyLabel").get_parsed_text().contains('produtos[101]["preco"]'), "Ajuda real mostra o contrato do catálogo")
+	if DisplayServer.get_name() != "headless":
+		await RenderingServer.frame_post_draw
+		get_viewport().get_texture().get_image().save_png("user://help_game_catalog.png")
+	game.help_menu.close_menu()
+	menu.set_aberto(true)
+	_check(ide.get_code_text() == c_source, "Visitar Ajuda preserva o script")
 	FeatureManager.unlock_feature(FeatureManager.FEATURE_STOCK)
 	ide.set_code_text("def somar(valores):\n    total = 0\n    for valor in valores:\n        total = total + valor\n    return total\n\nprint(somar([12, 8, 15]))\nwait(30)\n")
 	ide._on_run_pressed()

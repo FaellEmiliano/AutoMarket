@@ -16,6 +16,8 @@ var cart : Dictionary = {}
 
 var price_snapshot : Dictionary = {}
 
+var promotions: Array = []
+
 var requires_stock : bool = false
 
 var applies_discount : bool = false

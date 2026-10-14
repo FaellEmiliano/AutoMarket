@@ -9,7 +9,7 @@ const FEATURE_SENSOR := "sensor"
 const FEATURE_STOCK := "stock"
 const FEATURE_CHANGE := "change"
 const FEATURE_DELIVERY := "delivery"
-const INITIAL_FEATURES := [FEATURE_IF, FEATURE_CART, FEATURE_DISCOUNT, FEATURE_SENSOR, FEATURE_STOCK]
+const INITIAL_FEATURES := [FEATURE_IF, FEATURE_CART, FEATURE_SENSOR, FEATURE_STOCK]
 
 var _features := {
 	FEATURE_IF: false,
@@ -89,7 +89,7 @@ func locked_message(feature_id: String) -> String:
 		FEATURE_CART:
 			return "Você ainda não liberou compras com vários itens."
 		FEATURE_DISCOUNT:
-			return "Você ainda não liberou a regra de desconto."
+			return "Você ainda não liberou o sistema de promoções."
 		FEATURE_SENSOR:
 			return "Você ainda não liberou sensor()."
 		FEATURE_STOCK:

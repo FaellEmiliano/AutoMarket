@@ -40,7 +40,7 @@ func _on_pressed() -> void:
 
 func _update_visuals() -> void:
 	var marker := "◆ " if _selected else "  "
-	text = "%s%s" % [marker, _topic_title]
+	text = "%s%s" % [marker, _topic_title.replace(" — ", "\n   ")]
 	tooltip_text = "Disponível" if _unlocked else "Bloqueado: %s" % _locked_reason
 
 	if _selected and _unlocked:

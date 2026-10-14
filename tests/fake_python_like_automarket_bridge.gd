@@ -45,6 +45,9 @@ func get_stock(context: Dictionary) -> Bridge.Response:
 func product_table(context: Dictionary) -> Bridge.Response:
 	return _record("tabela_produtos", [], context)
 
+func promotions(context: Dictionary) -> Bridge.Response:
+	return _record("promocoes", [], context)
+
 func get_budget(context: Dictionary) -> Bridge.Response:
 	return _record("get_budget", [], context)
 

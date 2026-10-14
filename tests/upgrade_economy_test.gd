@@ -18,7 +18,6 @@ const STAGES := [
 	{"id": "premium_2", "average_income": 15.20, "primary": false},
 	{"id": "lang_sensor", "average_income": 18.44, "primary": true},
 	{"id": "marketing_2", "average_income": 18.44, "primary": false},
-	{"id": "gameplay_change", "average_income": 18.44, "primary": true},
 	{"id": "gameplay_stock", "average_income": 24.44, "primary": true},
 	{"id": "premium_3", "average_income": 28.82, "primary": false},
 	{"id": "marketing_3", "average_income": 37.18, "primary": false},
@@ -27,6 +26,13 @@ const STAGES := [
 
 
 func _ready() -> void:
+	var change: Dictionary = UpgradeData.UPGRADES["gameplay_change"]
+	assert(int(change["preco"]) == 120 and int(change["saldo_minimo_compra"]) == 250,
+		"Troco deve exigir cerca de tres vendas de R$24 e preservar R$130 para o estoque.")
+	var promotions: Dictionary = UpgradeData.UPGRADES["gameplay_promotions"]
+	assert(int(promotions["preco"]) == 160 and int(promotions["saldo_minimo_compra"]) == 300
+		and promotions["requer"] == ["gameplay_change"],
+		"Promocoes devem exigir troco, cerca de seis vendas adicionais e preservar R$140.")
 	for stage in STAGES:
 		var id := str(stage["id"])
 		var average_income := float(stage["average_income"])

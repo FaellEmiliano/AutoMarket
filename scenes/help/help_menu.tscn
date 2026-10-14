@@ -3,7 +3,6 @@
 [ext_resource type="Script" uid="uid://dvdm51yyflm5b" path="res://scenes/help/help_menu.gd" id="1_help"]
 [ext_resource type="Theme" path="res://assets/themes/game_ui_theme.tres" id="2_theme"]
 [ext_resource type="Texture2D" uid="uid://c7pl7uc51il4w" path="res://assets/sprites/menu2.png" id="3_menu2"]
-[ext_resource type="Texture2D" uid="uid://c5l08g30ydut5" path="res://assets/sprites/menu.png" id="4_menu"]
 
 [node name="HelpMenu" type="Control" unique_id=1373795401]
 visible = false
@@ -24,7 +23,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-color = Color(0, 0, 0, 0.62)
+color = Color(0.04, 0.03, 0.02, 0.76)
 
 [node name="WindowFrame" type="NinePatchRect" parent="." unique_id=1135644988]
 layout_mode = 1
@@ -45,6 +44,19 @@ patch_margin_right = 5
 patch_margin_bottom = 5
 axis_stretch_horizontal = 2
 axis_stretch_vertical = 2
+
+[node name="Interior" type="Panel" parent="WindowFrame" unique_id=1686459888]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 7.0
+offset_top = 7.0
+offset_right = -7.0
+offset_bottom = -7.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
 
 [node name="OuterMargin" type="MarginContainer" parent="WindowFrame" unique_id=934622604]
 layout_mode = 1
@@ -70,21 +82,21 @@ theme_override_constants/separation = 10
 [node name="TitleBlock" type="VBoxContainer" parent="WindowFrame/OuterMargin/Layout/Header" unique_id=290332959]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 2
+theme_override_constants/separation = 8
 
 [node name="MenuTitle" type="Label" parent="WindowFrame/OuterMargin/Layout/Header/TitleBlock" unique_id=206695914]
 layout_mode = 2
 theme_type_variation = &"TitleLabel"
-text = "GUIA DA LOJA"
+text = "AJUDA"
 
 [node name="MenuSubtitle" type="Label" parent="WindowFrame/OuterMargin/Layout/Header/TitleBlock" unique_id=2037320683]
 layout_mode = 2
 theme_type_variation = &"SubtitleLabel"
-text = "Poucos guias, com tudo que você precisa"
+text = "Programação, comandos e desafios do mercado"
 
 [node name="ProgressLabel" type="Label" parent="WindowFrame/OuterMargin/Layout/Header" unique_id=882165054]
 unique_name_in_owner = true
-custom_minimum_size = Vector2(180, 0)
+custom_minimum_size = Vector2(132, 0)
 layout_mode = 2
 theme_type_variation = &"SubtitleLabel"
 text = "GUIAS 0/0"
@@ -109,12 +121,13 @@ theme_override_constants/separation = 14
 custom_minimum_size = Vector2(270, 0)
 layout_mode = 2
 size_flags_horizontal = 0
-texture = ExtResource("4_menu")
-region_rect = Rect2(1, 1, 48, 49)
-patch_margin_left = 7
-patch_margin_top = 7
-patch_margin_right = 7
-patch_margin_bottom = 6
+texture = ExtResource("3_menu2")
+draw_center = false
+region_rect = Rect2(4, 4, 42, 43)
+patch_margin_left = 5
+patch_margin_top = 5
+patch_margin_right = 5
+patch_margin_bottom = 5
 axis_stretch_horizontal = 2
 axis_stretch_vertical = 2
 
@@ -159,6 +172,7 @@ theme_override_constants/separation = 7
 layout_mode = 2
 size_flags_horizontal = 3
 texture = ExtResource("3_menu2")
+draw_center = false
 region_rect = Rect2(4, 4, 42, 43)
 patch_margin_left = 5
 patch_margin_top = 5
@@ -174,9 +188,9 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-theme_override_constants/margin_left = 22
+theme_override_constants/margin_left = 18
 theme_override_constants/margin_top = 18
-theme_override_constants/margin_right = 22
+theme_override_constants/margin_right = 18
 theme_override_constants/margin_bottom = 18
 
 [node name="ContentLayout" type="VBoxContainer" parent="WindowFrame/OuterMargin/Layout/Pages/PageFrame/PageMargin" unique_id=184778799]
@@ -204,6 +218,12 @@ layout_mode = 2
 theme_type_variation = &"TitleLabel"
 text = "Título"
 autowrap_mode = 2
+
+[node name="CommandLabel" type="Label" parent="WindowFrame/OuterMargin/Layout/Pages/PageFrame/PageMargin/ContentLayout/ArticleHeader/TitleColumn" unique_id=2094798763]
+unique_name_in_owner = true
+visible = false
+layout_mode = 2
+text = "input()"
 
 [node name="StatusLabel" type="Label" parent="WindowFrame/OuterMargin/Layout/Pages/PageFrame/PageMargin/ContentLayout/ArticleHeader" unique_id=166017091]
 unique_name_in_owner = true

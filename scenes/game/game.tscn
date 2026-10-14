@@ -123,6 +123,26 @@ grow_vertical = 2
 text = "estoque"
 flat = true
 
+[node name="PromotionPanel" type="PanelContainer" parent="VBoxContainer"]
+visible = false
+custom_minimum_size = Vector2(124, 76)
+layout_mode = 2
+theme_type_variation = &"DeepPanel"
+
+[node name="Margin" type="MarginContainer" parent="VBoxContainer/PromotionPanel"]
+layout_mode = 2
+theme_override_constants/margin_left = 5
+theme_override_constants/margin_top = 4
+theme_override_constants/margin_right = 5
+theme_override_constants/margin_bottom = 4
+
+[node name="PromotionLabel" type="Label" parent="VBoxContainer/PromotionPanel/Margin"]
+layout_mode = 2
+theme_override_font_sizes/font_size = 12
+text = "PROMOÇÃO ATIVA"
+horizontal_alignment = 1
+autowrap_mode = 3
+
 [node name="Delivery" type="NinePatchRect" parent="VBoxContainer"]
 visible = false
 custom_minimum_size = Vector2(124, 44)
@@ -319,9 +339,13 @@ process_mode = 4
 top_level = false
 z_index = 2
 layout_mode = 1
+offset_top = 154.0
 offset_right = 124.0
 grow_vertical = 1
 mouse_filter = 2
+
+[node name="ColorRect2" parent="ShopMenu" index="1"]
+size_flags_vertical = 0
 
 [connection signal="pressed" from="VBoxContainer/Estoque/Estoque_button" to="Estoque_manager" method="_on_button_pressed"]
 [connection signal="pressed" from="HUD/DebugHotspot" to="." method="_open_debug_menu"]

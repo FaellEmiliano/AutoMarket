@@ -36,8 +36,9 @@ func _test_new_save_and_economy() -> void:
 	var save := Saves.create_new_save_data()
 	_check(int(save["meta"]["save_version"]) == 5, "Novo save deve usar a progressão versão 5.")
 	_check(int(save["game"]["dinheiro"]) == 180, "Novo mercado deve começar com R$180.")
-	for feature in ["if", "cart", "discount", "sensor", "stock"]:
+	for feature in ["if", "cart", "sensor", "stock"]:
 		_check(bool(save["game"]["unlocked_mechanics"].get(feature, false)), "Feature inicial ausente: %s." % feature)
+	_check(not bool(save["game"]["unlocked_mechanics"].get("discount", true)), "Promocoes devem iniciar desativadas.")
 	var quantities: Dictionary = save["stock"]["quantities"]
 	_check(quantities.size() == 6, "Todos os produtos devem ter configuração inicial.")
 	for code in quantities:
@@ -110,10 +111,11 @@ while True:
     if estoque[101] < 5:
         buy_stock({101: 5})
     if sensor("cliente_na_tela") == True:
-        compra = input()
+        pedido = input()
+        carrinho = pedido["carrinho"]
         total = 0
-        for codigo in compra:
-            total = total + produtos[codigo]["preco"] * compra[codigo]
+        for codigo in carrinho:
+            total = total + produtos[codigo]["preco"] * carrinho[codigo]
         send(total)
     wait(0)
 """
@@ -157,7 +159,7 @@ func _single_rice_challenge() -> ChallengeData:
 	challenge.requested_items = [{"code": 101, "name": "Arroz", "quantity": 1, "unit_price": 3.0}]
 	challenge.expected_output = [3.0]
 	challenge.reward = 24
-	challenge.env_context = EnvContext.new([{101: 1}], 0, [3.0])
+	challenge.env_context = EnvContext.new([{"carrinho": {101: 1}}], 0, [3.0])
 	return challenge
 
 func _set_all_quantities(amount: int) -> void:

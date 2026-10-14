@@ -34,10 +34,11 @@ func _test_free_program_flow() -> void:
 	var script := InterpreterSystem.script_workspace.get_script_document(script_id)
 	script["source"] = """buy_stock({101: 5})
 produtos = tabela_produtos()
-compra = input()
+pedido = input()
+carrinho = pedido["carrinho"]
 total = 0
-for codigo in compra:
-    total = total + produtos[codigo]["preco"] * compra[codigo]
+for codigo in carrinho:
+    total = total + produtos[codigo]["preco"] * carrinho[codigo]
 send(total)
 """
 
@@ -48,7 +49,7 @@ send(total)
 	challenge.price_snapshot = {101: 3.0}
 	challenge.requested_items = [{"code": 101, "name": "Arroz", "quantity": 2, "unit_price": 3.0}]
 	challenge.expected_output = [6.0]
-	challenge.env_context = EnvContext.new([{101: 2}], 0, [6.0])
+	challenge.env_context = EnvContext.new([{"carrinho": {101: 2}}], 0, [6.0])
 	var client := FakeClient.new()
 	add_child(client)
 	_check(TransactionManager.start_transaction(client, challenge), "Transação integrada deve iniciar.")

@@ -3,7 +3,8 @@ extends Node
 signal save_import_finished(slot: int, ok: bool, message: String)
 
 const LEGACY_SAVE_PATH = "user://save.json"
-const SAVE_SLOT_PATH = "user://save_slot_%d.json"
+const LEGACY_SLOT_PATH = "user://save_slot_%d.json"
+const SAVE_SLOT_PATH = "user://save_slot_%d.protected.json"
 const SAVE_VERSION = 5
 const INITIAL_MONEY := 180
 const INITIAL_STOCK := {"101": 5, "102": 5, "103": 5, "104": 5, "105": 5, "106": 5}
@@ -12,6 +13,7 @@ const MAX_STUDENT_NAME_LENGTH = 50
 const MAX_IMPORT_BYTES = 1024 * 1024
 const ScriptWorkspace = preload("res://systems/ScriptWorkspace.gd")
 const DeliveryConfigData = preload("res://data/DeliveryConfig.gd")
+const SaveCodec = preload("res://systems/SaveCodec.gd")
 
 var dados: Dictionary = {}
 var current_slot: int = 0
@@ -19,6 +21,7 @@ var _pending_import_slot := 0
 var _web_import_callback = null
 
 func _ready() -> void:
+	_migrate_legacy_slots()
 	migrate_legacy_save_if_needed()
 
 func set_current_slot(slot: int) -> void:
@@ -51,6 +54,10 @@ func delete_save(slot: int) -> void:
 	if path.is_empty() or not FileAccess.file_exists(path):
 		return
 	DirAccess.remove_absolute(path)
+	# Explicit deletion must not resurrect an older unprotected slot on restart.
+	var legacy_path := LEGACY_SLOT_PATH % slot
+	if FileAccess.file_exists(legacy_path):
+		DirAccess.remove_absolute(legacy_path)
 	if current_slot == slot:
 		current_slot = 0
 		dados.clear()
@@ -68,13 +75,9 @@ func save_game(slot: int = 0) -> void:
 	var save_data = _montar_save_data()
 	save_data["meta"]["last_saved_unix"] = Time.get_unix_time_from_system()
 	var path := get_save_path(target_slot)
-	var file = FileAccess.open(path, FileAccess.WRITE)
-	if file == null:
+	if not _write_save_file(path, save_data):
 		push_error("Erro ao salvar o jogo no Slot %d" % target_slot)
 		return
-
-	file.store_string(JSON.stringify(save_data, "\t"))
-	file.close()
 	dados = save_data
 	current_slot = target_slot
 	print("salvo slot %d" % target_slot)
@@ -101,9 +104,9 @@ func load_game(slot: int = 0) -> Dictionary:
 	var loaded_data := _read_save_file(path)
 	if loaded_data.is_empty():
 		push_error("Save do Slot %d corrompido ou invalido" % target_slot)
-		dados = create_new_save_data()
-		_carregar_sistemas(dados)
-		return _dados_compatibilidade(dados)
+		# No active slot means subsequent autosaves cannot overwrite the rejected file.
+		clear_current_slot()
+		return {}
 
 	dados = _validar_dados(loaded_data)
 	_carregar_sistemas(dados)
@@ -213,20 +216,16 @@ func migrate_legacy_save_if_needed() -> void:
 		if has_save(slot):
 			return
 
-	var loaded_data := _read_save_file(LEGACY_SAVE_PATH)
+	var loaded_data := _read_legacy_save_file(LEGACY_SAVE_PATH)
 	if loaded_data.is_empty():
 		push_warning("Save antigo encontrado, mas nao foi possivel migrar.")
 		return
 
 	var migrated_data := _validar_dados(loaded_data)
 	migrated_data["meta"]["last_saved_unix"] = Time.get_unix_time_from_system()
-	var file = FileAccess.open(get_save_path(1), FileAccess.WRITE)
-	if file == null:
+	if not _write_save_file(get_save_path(1), migrated_data):
 		push_error("Erro ao migrar save antigo para Slot 1")
 		return
-
-	file.store_string(JSON.stringify(migrated_data, "\t"))
-	file.close()
 	print("Save antigo migrado para Slot 1")
 
 func solicitar_save(_motivo := "") -> void:
@@ -241,13 +240,15 @@ func export_save(slot: int) -> Dictionary:
 		return {"ok": false, "message": "Nao ha save para exportar."}
 
 	var path := get_save_path(slot)
+	if _read_save_file(path).is_empty():
+		return {"ok": false, "message": "Save corrompido ou com integridade invalida."}
 	var file = FileAccess.open(path, FileAccess.READ)
 	if file == null:
 		return {"ok": false, "message": "Nao foi possivel ler o save."}
 
 	var buffer := file.get_buffer(file.get_length())
 	file.close()
-	var file_name := "jogo_educativo_slot_%d.json" % slot
+	var file_name := "jogo_educativo_slot_%d.protected.json" % slot
 	JavaScriptBridge.download_buffer(buffer, file_name, "application/json")
 	return {"ok": true, "message": "Download do Slot %d iniciado." % slot}
 
@@ -323,23 +324,14 @@ func import_save_text(slot: int, texto: String) -> Dictionary:
 	if texto.to_utf8_buffer().size() > MAX_IMPORT_BYTES:
 		return {"ok": false, "message": "Arquivo de save muito grande."}
 
-	var json := JSON.new()
-	var erro := json.parse(texto)
-	if erro != OK or not (json.data is Dictionary):
-		return {"ok": false, "message": "Arquivo de save invalido."}
-
-	var imported_data: Dictionary = json.data
-	if not _looks_like_save_data(imported_data):
-		return {"ok": false, "message": "Arquivo nao parece ser um save deste jogo."}
+	var imported_data := SaveCodec.decode(texto)
+	if imported_data.is_empty() or not _looks_like_save_data(imported_data):
+		return {"ok": false, "message": "Save sem protecao, corrompido ou com integridade invalida. Exporte novamente pelo jogo atualizado."}
 
 	imported_data = _validar_dados(imported_data)
 	imported_data["meta"]["last_saved_unix"] = Time.get_unix_time_from_system()
-	var file = FileAccess.open(get_save_path(slot), FileAccess.WRITE)
-	if file == null:
+	if not _write_save_file(get_save_path(slot), imported_data):
 		return {"ok": false, "message": "Nao foi possivel gravar o save importado."}
-
-	file.store_string(JSON.stringify(imported_data, "\t"))
-	file.close()
 	dados = imported_data
 	current_slot = slot
 	_carregar_sistemas(dados)
@@ -372,16 +364,63 @@ func complete_tutorial() -> void:
 	salvar()
 
 func _read_save_file(path: String) -> Dictionary:
+	return SaveCodec.decode(_read_save_text(path))
+
+func _read_save_text(path: String) -> String:
 	var file = FileAccess.open(path, FileAccess.READ)
 	if file == null:
-		return {}
+		return ""
+	if file.get_length() > MAX_IMPORT_BYTES:
+		file.close()
+		return ""
 	var texto = file.get_as_text()
 	file.close()
+	return texto
+
+func _write_save_file(path: String, save_data: Dictionary) -> bool:
+	# Encode completely before opening a file. Never truncate a working save on failure.
+	var text := SaveCodec.encode(save_data)
+	if text.is_empty():
+		return false
+	var temporary_path := path + ".tmp"
+	var file := FileAccess.open(temporary_path, FileAccess.WRITE)
+	if file == null:
+		return false
+	file.store_string(text)
+	file.flush()
+	var write_error := file.get_error()
+	file.close()
+	if write_error != OK or _read_save_file(temporary_path).is_empty():
+		DirAccess.remove_absolute(temporary_path)
+		return false
+	var replaced := DirAccess.rename_absolute(temporary_path, path) == OK
+	if not replaced:
+		DirAccess.remove_absolute(temporary_path)
+	return replaced
+
+func _read_legacy_save_file(path: String) -> Dictionary:
+	var texto := _read_save_text(path)
 	var json = JSON.new()
 	var erro = json.parse(texto)
 	if erro != OK or not (json.data is Dictionary):
 		return {}
-	return json.data
+	var legacy: Dictionary = json.data
+	# A damaged protected envelope must never be treated as legacy progress.
+	if legacy.has("format") or legacy.has("payload") or legacy.has("hmac") or not _looks_like_save_data(legacy):
+		return {}
+	return legacy
+
+func _migrate_legacy_slots() -> void:
+	for slot in range(1, SLOT_COUNT + 1):
+		var legacy_path := LEGACY_SLOT_PATH % slot
+		if has_save(slot) or not FileAccess.file_exists(legacy_path):
+			continue
+		var legacy_data := _read_legacy_save_file(legacy_path)
+		if legacy_data.is_empty():
+			push_warning("Save antigo do Slot %d invalido; arquivo preservado." % slot)
+			continue
+		if not _write_save_file(get_save_path(slot), _validar_dados(legacy_data)):
+			push_warning("Nao foi possivel proteger o Slot %d; arquivo antigo preservado." % slot)
 
 func _resolve_slot(slot: int) -> int:
 	if slot == 0:
@@ -488,7 +527,7 @@ func _save_padrao() -> Dictionary:
 			"unlocked_mechanics": {
 				"sum": true,
 				"cart": true,
-				"discount": true,
+				"discount": false,
 				"change": false,
 				"stock": true,
 				"if": true,

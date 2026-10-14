@@ -85,18 +85,20 @@ func _remove_student_name_from_slot(slot: int) -> void:
 	if file == null:
 		_failures.append("Nao foi possivel preparar o save legado.")
 		return
-	var data = JSON.parse_string(file.get_as_text())
+	var data = Saves.SaveCodec.decode(file.get_as_text())
 	file.close()
 	if not (data is Dictionary):
 		_failures.append("Save invalido ao preparar compatibilidade legada.")
 		return
 	data.get("meta", {}).erase("student_name")
-	file = FileAccess.open(path, FileAccess.WRITE)
+	file = FileAccess.open(Saves.LEGACY_SLOT_PATH % slot, FileAccess.WRITE)
 	if file == null:
 		_failures.append("Nao foi possivel gravar o save legado.")
 		return
 	file.store_string(JSON.stringify(data, "\t"))
 	file.close()
+	DirAccess.remove_absolute(path)
+	Saves._migrate_legacy_slots()
 
 
 func _check(condition: bool, message: String) -> void:
@@ -108,6 +110,8 @@ func _backup_slot_files() -> void:
 	for slot in range(1, Saves.SLOT_COUNT + 1):
 		var path := Saves.get_save_path(slot)
 		_backups[path] = _read_file_bytes(path)
+		var legacy_path := Saves.LEGACY_SLOT_PATH % slot
+		_backups[legacy_path] = _read_file_bytes(legacy_path)
 
 
 func _restore_slot_files() -> void:

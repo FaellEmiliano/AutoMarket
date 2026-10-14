@@ -85,6 +85,8 @@ func _backup_slot_files() -> void:
 	for slot in range(1, Saves.SLOT_COUNT + 1):
 		var path := Saves.get_save_path(slot)
 		_backups[path] = _read_file_bytes(path)
+		var legacy_path := Saves.LEGACY_SLOT_PATH % slot
+		_backups[legacy_path] = _read_file_bytes(legacy_path)
 
 
 func _restore_slot_files() -> void:

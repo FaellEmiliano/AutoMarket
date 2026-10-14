@@ -2,8 +2,6 @@ extends Tree
 
 signal document_selected(kind: String, id: String)
 signal script_menu_requested(id: String)
-const Topics = preload("res://data/HelpTopics.gd")
-const Progress = preload("res://systems/HelpProgress.gd")
 const ActiveExperienceData = preload("res://data/ActiveExperience.gd")
 const STATES := {"running": "RODANDO", "sleeping": "DORMINDO", "waiting_input": "AGUARDANDO", "error": "ERRO", "finished": "FINALIZADO", "stopped": "PARADO"}
 var script_items := {}
@@ -21,22 +19,6 @@ func _ready() -> void:
 	_scripts_root = create_item(root)
 	_scripts_root.set_text(0, "SCRIPTS")
 	_scripts_root.set_selectable(0, false)
-	var docs := create_item(root)
-	docs.set_text(0, "DOCUMENTAÇÃO")
-	docs.set_selectable(0, false)
-	var categories := {}
-	for topic in Progress.get_active_topics(Topics.TOPICS):
-		var category := str(topic.category)
-		if not categories.has(category):
-			var item := create_item(docs)
-			item.set_text(0, category)
-			item.set_selectable(0, false)
-			item.collapsed = true
-			categories[category] = item
-		var item := create_item(categories[category])
-		item.set_metadata(0, {"kind": "help", "id": str(topic.id)})
-		topic_items[str(topic.id)] = item
-	refresh_topics()
 
 func refresh_scripts() -> void:
 	_syncing = true
@@ -78,12 +60,8 @@ func _is_hidden_legacy_script(id: String) -> bool:
 	return not ActiveExperienceData.SHOW_DELIVERY and id == InterpreterSystem.get_delivery_script_id()
 
 func refresh_topics(_arg = null) -> void:
-	for topic in Progress.get_active_topics(Topics.TOPICS):
-		var item: TreeItem = topic_items[str(topic.id)]
-		var unlocked := Progress.is_requirement_met(topic.get("requirement", ""))
-		item.set_text(0, str(topic.title) + ("" if unlocked else " · Bloqueado"))
-		item.set_tooltip_text(0, str(topic.title) + ("" if unlocked else " — disponível ao avançar no mercado"))
-		item.set_custom_color(0, Color("dce4e8") if unlocked else Color("8d9da7"))
+	# Compatibility for callers; documentation is now exclusive to HelpMenu.
+	pass
 
 func select_document(kind: String, id: String) -> void:
 	var items := script_items if kind == "script" else topic_items

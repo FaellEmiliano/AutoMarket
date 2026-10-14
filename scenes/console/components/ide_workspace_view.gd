@@ -4,7 +4,6 @@ const ThemeFactory = preload("res://scenes/console/components/ide_theme.gd")
 const Explorer = preload("res://scenes/console/components/ide_explorer.gd")
 const Tabs = preload("res://scenes/console/components/ide_document_tabs.gd")
 const Editor = preload("res://scenes/console/code_edit.gd")
-const Documentation = preload("res://scenes/console/components/ide_documentation_view.gd")
 const Find = preload("res://scenes/console/components/ide_find_bar.gd")
 const Output = preload("res://scenes/console/components/ide_output_panel.gd")
 const ICON_EXPLORER = preload("res://assets/icons/ide_explorer.svg")
@@ -21,7 +20,6 @@ var layout_mode_id := -1
 var explorer: Tree
 var tabs: TabBar
 var code_edit: CodeEdit
-var documentation: ScrollContainer
 var empty_state: Label
 var find_bar: HBoxContainer
 var output: VBoxContainer
@@ -88,7 +86,7 @@ func build() -> void:
 	brand.theme_type_variation = &"IDESectionLabel"
 	brand.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	toolbar.add_child(brand)
-	explorer_button = button(toolbar, "Explorer", "Abrir ou fechar arquivos e documentação", ICON_EXPLORER)
+	explorer_button = button(toolbar, "Explorer", "Abrir ou fechar arquivos de scripts", ICON_EXPLORER)
 	run_all_button = button(toolbar, "Rodar todos", "Iniciar todos os scripts", ICON_RUN)
 	run_button = button(toolbar, "Rodar", "Executar o script visível · Ctrl+Enter", ICON_RUN)
 	run_button.theme_type_variation = &"IDEPrimaryButton"
@@ -157,10 +155,6 @@ func build() -> void:
 	code_edit.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	documents.add_child(code_edit)
 	find_bar.editor = code_edit
-	documentation = Documentation.new()
-	documentation.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	documents.add_child(documentation)
-	documentation.hide()
 	empty_state = Label.new()
 	empty_state.text = "Nenhum documento aberto"
 	empty_state.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER

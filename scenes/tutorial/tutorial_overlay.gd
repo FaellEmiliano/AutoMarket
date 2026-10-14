@@ -109,7 +109,7 @@ func _enter_step(step: int) -> void:
 			_set_text("Bem-vindo ao Mercado Automatizado. Os produtos usam códigos, e você pode organizar toda a automação em um ou vários arquivos livres.")
 		1:
 			_call_if_exists(script_menu, "set_aberto", [true])
-			_set_text("Em qualquer arquivo, input() entrega um carrinho {código: quantidade}. Consulte tabela_produtos() e use send() para finalizar a venda.")
+			_set_text("Em qualquer arquivo, input() entrega um pedido. Acesse pedido[\"carrinho\"] para ler {código: quantidade}, consulte tabela_produtos() e use send() para finalizar a venda.")
 		2:
 			_call_if_exists(script_menu, "set_aberto", [true])
 			_set_text("Qualquer arquivo também pode consultar get_stock(), get_budget() e o catálogo. buy_stock() compra lotes inteiros de forma atômica, respeitando capacidade e orçamento.")

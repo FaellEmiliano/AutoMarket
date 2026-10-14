@@ -629,6 +629,11 @@ func _test_automarket_bridge_availability_and_stock() -> void:
 		and unavailable.failure().category == "bridge"
 		and unavailable.failure().details.operation == "get_stock",
 		"Built-in AutoMarket sem bridge deve falhar de forma tipada.")
+	var unavailable_promotions = _execute("promocoes()\n")
+	_check(unavailable_promotions.has_failure()
+		and unavailable_promotions.failure().code == "AUTOMARKET_BRIDGE_UNAVAILABLE"
+		and unavailable_promotions.failure().details.operation == "promocoes",
+		"promocoes sem bridge deve falhar como os demais built-ins AutoMarket.")
 
 	var stock_snapshot := {101: 3, 102: 5, 103: 7}
 	var bridge := FakeAutoMarketBridge.new()
@@ -650,6 +655,21 @@ func _test_automarket_bridge_availability_and_stock() -> void:
 		and stock_calls[0].context.runtime_id == "runtime_test"
 		and stock_calls[0].context.script_id == "stock_script",
 		"A bridge deve receber identidade explícita do runtime e do script.")
+	var promotion_rules := [{"tipo": "leve_pague", "produto": 104, "leve": 3, "pague": 2}]
+	var promotion_bridge := FakeAutoMarketBridge.new()
+	promotion_bridge.set_response("promocoes", promotion_rules)
+	var promotion_executor = _execute("regras = promocoes()\nregras[0][\"pague\"] = 0\noriginal = promocoes()[0][\"pague\"]\n",
+		10000, "promotion_script", promotion_bridge)
+	_check(not promotion_executor.has_failure()
+		and _integer(promotion_executor, "original") == 2
+		and promotion_rules[0]["pague"] == 2
+		and promotion_bridge.calls_for("promocoes").size() == 2,
+		"promocoes deve converter lista de dicionarios sem expor referencias mutaveis.")
+	var invalid_promotion_arity = _execute("promocoes(1)\n", 10000, "promotion_arity", promotion_bridge)
+	_check(invalid_promotion_arity.has_failure()
+		and invalid_promotion_arity.failure().code == "ARITY_MISMATCH"
+		and promotion_bridge.calls_for("promocoes").size() == 2,
+		"promocoes deve rejeitar argumentos antes de chamar a bridge.")
 
 
 func _test_automarket_synchronous_builtins() -> void:

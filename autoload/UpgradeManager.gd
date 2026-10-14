@@ -71,7 +71,11 @@ func can_buy(id: String) -> bool:
 		return false
 	if id == "zerar" and GameManager.game_completed:
 		return false
-	return get_currency_balance(get_upgrade_currency(id)) >= int(UpgradeData.UPGRADES[id].get("preco", 0))
+	return get_currency_balance(get_upgrade_currency(id)) >= _required_balance(id)
+
+func _required_balance(id: String) -> int:
+	var data: Dictionary = UpgradeData.UPGRADES[id]
+	return maxi(int(data.get("preco", 0)), int(data.get("saldo_minimo_compra", 0)))
 
 func get_upgrade_currency(id: String) -> String:
 	if not UpgradeData.UPGRADES.has(id):
@@ -96,11 +100,14 @@ func get_missing_currency_text(id: String) -> String:
 		return "indisponível"
 	var currency := get_upgrade_currency(id)
 	var price := int(UpgradeData.UPGRADES[id].get("preco", 0))
-	var missing := maxi(0, price - get_currency_balance(currency))
+	var required := _required_balance(id)
+	var missing := maxi(0, required - get_currency_balance(currency))
 	if missing <= 0:
 		return "dá para comprar"
 	if currency == CURRENCY_DIAMONDS:
 		return "faltam %d diamantes" % missing
+	if required > price:
+		return "junte R$ %d para comprar e manter reserva de estoque" % required
 	return "falta grana"
 
 func comprar_upgrade(id: String) -> void:
@@ -120,7 +127,7 @@ func comprar_upgrade(id: String) -> void:
 	
 	var preco = int(UpgradeData.UPGRADES[id].get("preco", 0))
 	var currency := get_upgrade_currency(id)
-	if get_currency_balance(currency) < preco:
+	if get_currency_balance(currency) < _required_balance(id):
 		push_warning("Moeda insuficiente para comprar: %s" % id)
 		return
 
@@ -159,6 +166,8 @@ func aplicar_upgrade(id: String, emit_feedback := true) -> void:
 			DeliverySystem.mark_completed(false)
 			if emit_feedback:
 				EventBus.emit_signal("player_notification", "Jogo concluído!\nSua loja chegou ao nível máximo de automação.")
+	if emit_feedback and UpgradeData.UPGRADES[id].has("notification"):
+		EventBus.emit_signal("player_notification", str(UpgradeData.UPGRADES[id]["notification"]))
 	upgrade_aplicado.emit(id)
 
 func calcular_recompensa(valor_base: int) -> int:

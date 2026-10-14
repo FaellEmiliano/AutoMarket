@@ -70,14 +70,25 @@ const UPGRADES = {
 		"efeito": {"tipo": "spawn_delay", "min": 2.5, "max": 4.5}
 	},
 	"gameplay_change": {
-		"nome": "Cliente com troco",
+		"nome": "Troco automático",
 		"categoria": "gameplay",
-		"descricao": "Clientes entregam um valor acima do total e esperam o troco correto",
-		"preco": 180,
-		"dinheiro_minimo": 680,
+		"descricao": "O pedido passa a incluir o pagamento. Responda com o total e o troco, nessa ordem.",
+		"preco": 120,
+		"saldo_minimo_compra": 250,
 		"requer": [],
 		"help_topic": "change_client",
 		"efeito": {"tipo": "unlock_feature", "feature": "change"}
+	},
+	"gameplay_promotions": {
+		"nome": "Sistema de promoções",
+		"categoria": "gameplay",
+		"descricao": "Ofertas leve X, pague Y passam a valer por produto. Calcule o total promocional antes do troco.",
+		"preco": 160,
+		"saldo_minimo_compra": 300,
+		"requer": ["gameplay_change"],
+		"help_topic": "promotions",
+		"notification": "Sistema de promoções instalado. Use promocoes() para consultar as ofertas antes de calcular o total.",
+		"efeito": {"tipo": "unlock_feature", "feature": "discount"}
 	},
 	"gameplay_stock": {
 		"retired": true,

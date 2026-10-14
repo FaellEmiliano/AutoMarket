@@ -7,6 +7,9 @@ const DebugMenuScene = preload("res://scenes/debug/debug_menu.tscn")
 const DeliveryConfigData = preload("res://data/DeliveryConfig.gd")
 const ConversationHistoryModel = preload("res://systems/ConversationHistory.gd")
 const ActiveExperienceData = preload("res://data/ActiveExperience.gd")
+const ProductCatalogData = preload("res://data/ProductCatalog.gd")
+const HUD_SPACER_HEIGHT := 124.0
+const MULTI_PROMOTION_SPACER_HEIGHT := 64.0
 
 @onready var dinheiro_label: Label = $VBoxContainer/ColorRect/VBoxContainer/Dinheiro
 @onready var dinheiro_panel: NinePatchRect = $VBoxContainer/ColorRect
@@ -14,6 +17,8 @@ const ActiveExperienceData = preload("res://data/ActiveExperience.gd")
 @onready var script_menu: Control = $ScriptMenu
 @onready var shop_menu: HBoxContainer = $ShopMenu
 @onready var estoque_panel: NinePatchRect = $VBoxContainer/Estoque
+@onready var promotion_panel: PanelContainer = $VBoxContainer/PromotionPanel
+@onready var promotion_label: Label = $VBoxContainer/PromotionPanel/Margin/PromotionLabel
 @onready var delivery_panel_button: NinePatchRect = $VBoxContainer/Delivery
 @onready var delivery_button: Button = $VBoxContainer/Delivery/DeliveryButton
 @onready var diamond_row: HBoxContainer = $VBoxContainer/ColorRect/VBoxContainer/DiamondRow
@@ -60,6 +65,8 @@ func _ready() -> void:
 	EventBus.update_money.connect(update_money)
 	EventBus.player_notification.connect(_queue_notification)
 	EventBus.conversation_message_shown.connect(_on_conversation_message_shown)
+	EventBus.update_context.connect(_on_context_updated)
+	EventBus.end_client.connect(_on_client_ended)
 	EventBus.secret_menu_unlocked.connect(_on_secret_menu_unlocked)
 	FeatureManager.feature_unlocked.connect(_on_feature_unlocked)
 	GameManager.diamonds_changed.connect(_update_diamonds)
@@ -148,11 +155,35 @@ func _on_feature_unlocked(_feature_id: String) -> void:
 
 func _atualizar_estado_mecanicas() -> void:
 	estoque_panel.visible = true
+	_update_promotion_panel(TransactionManager.active_challenge)
 	shop_menu.visible = ActiveExperienceData.SHOW_UPGRADE_SHOP
 	shop_menu.process_mode = Node.PROCESS_MODE_INHERIT if ActiveExperienceData.SHOW_UPGRADE_SHOP else Node.PROCESS_MODE_DISABLED
 	delivery_panel_button.visible = ActiveExperienceData.SHOW_DELIVERY
 	delivery_panel.visible = ActiveExperienceData.SHOW_DELIVERY and delivery_panel.visible
 	diamond_row.visible = ActiveExperienceData.SHOW_DELIVERY and (delivery_panel_button.visible or GameManager.diamonds > 0)
+
+func _on_context_updated(challenge: ChallengeData) -> void:
+	_update_promotion_panel(challenge)
+
+func _on_client_ended(_completed: bool) -> void:
+	promotion_panel.hide()
+	get_node("VBoxContainer/Control").custom_minimum_size.y = HUD_SPACER_HEIGHT
+
+func _update_promotion_panel(challenge: ChallengeData) -> void:
+	var rules: Array = challenge.promotions if challenge != null else []
+	promotion_panel.visible = not rules.is_empty()
+	# Make room for the extra offer in the compact HUD without shrinking its text.
+	get_node("VBoxContainer/Control").custom_minimum_size.y = MULTI_PROMOTION_SPACER_HEIGHT if rules.size() > 1 else HUD_SPACER_HEIGHT
+	var lines: Array[String] = ["PROMOÇÃO ATIVA" if rules.size() == 1 else "PROMOÇÕES ATIVAS"]
+	for rule in rules:
+		var product: Dictionary = ProductCatalogData.PRODUCTS.get(int(rule["produto"]), {})
+		lines.append(str(product.get("nome", "")))
+		match rule["tipo"]:
+			"leve_pague":
+				lines.append("Leve %d, pague %d" % [int(rule["leve"]), int(rule["pague"])])
+			"percentual":
+				lines.append("%d%% OFF" % roundi(float(rule["desconto"]) * 100.0))
+	promotion_label.text = "\n".join(lines).strip_edges() if not rules.is_empty() else ""
 
 func _open_delivery_panel() -> void:
 	if not ActiveExperienceData.SHOW_DELIVERY:

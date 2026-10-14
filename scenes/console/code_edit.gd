@@ -44,6 +44,9 @@ func configure_for_python_like() -> void:
 func completion_words() -> Array:
 	return profile.keywords + profile.constants + profile.builtins
 
+func _get_tooltip(at_position: Vector2) -> String:
+	return str(profile.get("builtin_documentation", {}).get(get_word_at_pos(at_position), ""))
+
 func set_diagnostics(diagnostics: Array) -> void:
 	clear_diagnostics()
 	for diagnostic in diagnostics:

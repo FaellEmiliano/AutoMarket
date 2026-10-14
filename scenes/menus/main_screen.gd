@@ -387,7 +387,9 @@ func _on_slot_play_pressed(slot: int) -> void:
 	StudentIdentity.clear_student()
 	Saves.set_current_slot(slot)
 	if Saves.has_save(slot):
-		Saves.load_game(slot)
+		if Saves.load_game(slot).is_empty():
+			_refresh_slot_menu()
+			return
 		if Saves.has_valid_student_name():
 			StudentIdentity.show_student(Saves.get_student_name())
 			_go_to_game()

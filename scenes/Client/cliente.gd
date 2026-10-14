@@ -51,7 +51,7 @@ func show_request_dialog(new_challenge) -> void:
 	if _tem_troco():
 		dialog[dialog.size()] = {
 		"faceset": CUSTOMER_FACESET,
-			"dialog": "Vou pagar com R$ " + formatar(challenge.order.payment) + ".",
+			"dialog": "Vou pagar com R$ " + formatar(challenge.order.payment) + ". Informe o total da compra e quanto recebo de troco.",
 			"title": "Cliente"
 		}
 
@@ -64,6 +64,8 @@ func show_request_dialog(new_challenge) -> void:
 func gerar_texto_pedido(inputs):
 	if challenge.requires_stock:
 		var texto_estoque = gerar_texto_ingredientes(challenge.requested_items)
+		if not challenge.promotions.is_empty():
+			texto_estoque += "\nConsidere as ofertas ativas para os produtos em promoção."
 		return texto_estoque
 
 	if inputs.size() < 2:
@@ -99,7 +101,7 @@ func gerar_texto_ingredientes(items: Array) -> String:
 			str(item.get("name", "")),
 			formatar(float(item.get("unit_price", 0.0)))
 		])
-	linhas.append("Quanto fica tudo?")
+	linhas.append("Qual é o total de todos os produtos?")
 	return "\n".join(linhas)
 
 
@@ -162,7 +164,7 @@ func dialogo_erro(valores):
 		},
 		1: {
 			"faceset": CUSTOMER_FACESET,
-			"dialog": "Acho que essa conta não bateu.",
+			"dialog": "Agora o caixa espera total e troco." if _tem_troco() and valores.size() != 2 else "Acho que essa conta não bateu.",
 			"title": "Cliente"
 		}
 	}
@@ -174,7 +176,7 @@ func dialogo_erro(valores):
 # FORMATAR DINHEIRO
 # =========================
 func formatar(valor):
-	return str("%.2f" % valor)
+	return str("%.2f" % valor).replace(".", ",")
 
 func _formatar_resposta(valores: Array) -> String:
 	if valores.size() == 1:

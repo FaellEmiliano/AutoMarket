@@ -36,6 +36,7 @@ func _ready() -> void:
 	_test_rejected_and_duplicate_sales()
 	_test_empty_stock_and_legacy_compatibility()
 	_test_persistence()
+	await _test_change_upgrade_checkout()
 	if _failures.is_empty():
 		print("CHECKOUT_CODES_INTEGRATION_TEST_OK")
 	else:
@@ -51,10 +52,12 @@ func _test_cart_input_copy_and_single_consumption() -> void:
 	var client := FakeClient.new()
 	add_child(client)
 	_check(TransactionManager.start_transaction(client, challenge), "Transacao por codigo deve iniciar.")
-	var cart = TransactionManager.next_input()
-	_check(cart == {101: 2}, "input deve entregar o carrinho por codigo.")
+	var pedido = TransactionManager.next_input()
+	_check(pedido is Dictionary and pedido.keys() == ["carrinho"], "input deve entregar somente o pedido com carrinho.")
+	var cart = pedido.get("carrinho", {})
+	_check(cart is Dictionary and cart == {101: 2} and cart.keys()[0] is int, "Carrinho deve manter codigos inteiros e quantidades.")
 	cart[101] = 999
-	_check(challenge.cart == {101: 2}, "Carrinho retornado deve ser copia independente.")
+	_check(challenge.cart == {101: 2} and challenge.env_context.inputs[0]["carrinho"] == {101: 2}, "Carrinho retornado deve ser copia profunda independente.")
 	_check(TransactionManager.next_input() == 0, "Carrinho deve ser consumido uma unica vez.")
 	TransactionManager.submit([6])
 	client.result_closed.emit()
@@ -82,7 +85,7 @@ func _test_customer_cart_text() -> void:
 	]
 	customer.challenge = challenge
 	var text: String = customer.gerar_texto_pedido([])
-	_check(text.contains("[101] 2x Arroz") and text.contains("R$ 3.00 cada"), "UI do cliente deve mostrar codigo, nome, quantidade e preco do snapshot.")
+	_check(text.contains("[101] 2x Arroz") and text.contains("R$ 3,00 cada"), "UI do cliente deve mostrar codigo, nome, quantidade e preco do snapshot.")
 	_check(not text.contains("Tenho um pedido aqui"), "Pedido por códigos não pode cair no texto genérico.")
 	customer.free()
 
@@ -102,10 +105,11 @@ func _test_python_like_full_sale() -> void:
 	add_child(manager)
 	manager.start_script("checkout_codes", """
 produtos = tabela_produtos()
-compra = input()
+pedido = input()
+carrinho = pedido["carrinho"]
 total = 0
-for codigo in compra:
-    total = total + produtos[codigo]["preco"] * compra[codigo]
+for codigo in carrinho:
+    total = total + produtos[codigo]["preco"] * carrinho[codigo]
 send(total)
 """, "CaixaCodigos", null, "python_like")
 	await _wait_until_not_running(manager, "checkout_codes")
@@ -157,6 +161,109 @@ func _test_persistence() -> void:
 	StockSystem.load_save_data(stock_save)
 	GameManager.load_save_data(game_save)
 	_check(_quantity(101) == 7 and GameManager.money == 42, "Saldo e estoque devem sobreviver ao round-trip de persistencia.")
+
+func _test_change_upgrade_checkout() -> void:
+	var new_save := Saves.create_new_save_data()
+	_check(not bool(new_save["game"]["unlocked_mechanics"]["change"]) and new_save["shop"]["comprados"].is_empty(),
+		"Novo save deve comecar sem troco e sem upgrade comprado.")
+	UpgradeManager.load_save_data({"comprados": {}})
+	_check(not FeatureManager.has_feature(FeatureManager.FEATURE_CHANGE), "Troco deve iniciar desativado.")
+	GameManager.money = 180
+	_check(not UpgradeManager.can_buy("gameplay_change"), "Upgrade nao deve ser comprado com o saldo inicial.")
+	UpgradeManager.comprar_upgrade("gameplay_change")
+	_check(GameManager.money == 180 and not UpgradeManager.has_upgrade("gameplay_change"),
+		"Compra direta tambem deve respeitar a reserva de caixa.")
+	GameManager.money = 252
+	_check(UpgradeManager.can_buy("gameplay_change"), "Tres recompensas basicas devem permitir a compra.")
+	UpgradeManager.comprar_upgrade("gameplay_change")
+	_check(GameManager.money == 132 and UpgradeManager.has_upgrade("gameplay_change"), "Compra deve descontar R$120 e preservar reserva.")
+	_check(FeatureManager.has_feature(FeatureManager.FEATURE_CHANGE), "Compra deve liberar FEATURE_CHANGE.")
+	var full_save := Saves._montar_save_data()
+	_check(bool(full_save["shop"]["comprados"].get("gameplay_change", false))
+		and bool(full_save["game"]["unlocked_mechanics"].get("change", false)),
+		"Save completo deve registrar compra e feature de troco.")
+	var purchased := UpgradeManager.get_save_data()
+	UpgradeManager.load_save_data({"comprados": {"premium_1": true}})
+	_check(not FeatureManager.has_feature(FeatureManager.FEATURE_CHANGE) and UpgradeManager.reward_multiplier == 1.0,
+		"Upgrade legado oculto nao pode ativar troco nem multiplicar recompensa.")
+	UpgradeManager.load_save_data(purchased)
+	_check(FeatureManager.has_feature(FeatureManager.FEATURE_CHANGE), "Save/load deve restaurar troco comprado.")
+	_check(ChallengeSystem._escolher_pagamento(13.0) == 20.0
+		and ChallengeSystem._escolher_pagamento(27.0) == 30.0
+		and ChallengeSystem._escolher_pagamento(64.0) == 100.0
+		and ChallengeSystem._escolher_pagamento(100.0) == 150.0,
+		"Pagamento deve usar valores plausiveis mesmo para carrinhos grandes.")
+
+	_reset_state()
+	_set_quantity(101, 5)
+	_set_quantity(103, 4)
+	var generated := ChallengeSystem.set_context()
+	_check(generated != null and generated.requires_stock and generated.expected_output.size() == 2,
+		"Desafio ativo deve permanecer de estoque e passar a exigir total e troco.")
+	var challenge := _stock_challenge([
+		{"code": 101, "name": "Arroz", "quantity": 2, "unit_price": 3.0},
+		{"code": 103, "name": "Farinha", "quantity": 2, "unit_price": 4.0}
+	], false, true)
+	var pedido: Dictionary = challenge.env_context.inputs[0]
+	var total := float(challenge.expected_output[0])
+	var troco := float(challenge.expected_output[1])
+	_check(pedido.keys().size() == 2 and pedido.has("carrinho") and pedido.has("pagamento") and challenge.env_context.inputs.size() == 1,
+		"Troco deve vir no mesmo pedido, sem input separado.")
+	_check(pedido["carrinho"] == {101: 2, 103: 2} and pedido["pagamento"] is float and float(pedido["pagamento"]) >= total,
+		"Pedido deve manter codigos inteiros e pagamento suficiente.")
+	_check(float(pedido["pagamento"]) == challenge.order.payment and abs(troco - (float(pedido["pagamento"]) - total)) < 0.01,
+		"Dialogo, input e resposta esperada devem usar o mesmo pagamento.")
+	_test_change_dialog(challenge, pedido)
+	for rejected in [[total], [total, troco + 1.0], [troco, total]]:
+		var rejected_client := FakeClient.new()
+		add_child(rejected_client)
+		_check(TransactionManager.start_transaction(rejected_client, challenge), "Tentativa de resposta deve iniciar.")
+		_check(not TransactionManager.submit(rejected), "Resposta incompleta, incorreta ou invertida deve falhar.")
+		rejected_client.result_closed.emit()
+		rejected_client.queue_free()
+	_check(_quantity(101) == 5 and _quantity(103) == 4 and _sale_events.is_empty(),
+		"Respostas rejeitadas nao podem consumir estoque nem registrar venda.")
+	GameManager.current_context = challenge
+	var client := FakeClient.new()
+	add_child(client)
+	_check(TransactionManager.start_transaction(client, challenge), "Venda com troco deve iniciar.")
+	var manager := ScriptRuntimeManagerScript.new()
+	add_child(manager)
+	manager.start_script("checkout_change", """produtos = tabela_produtos()
+pedido = input()
+carrinho = pedido["carrinho"]
+total = 0
+for codigo in carrinho:
+    total = total + produtos[codigo]["preco"] * carrinho[codigo]
+pagamento = pedido["pagamento"]
+troco = pagamento - total
+send(total, troco)
+""", "CaixaTroco", null, "python_like")
+	await _wait_until_not_running(manager, "checkout_change")
+	var runtime: Dictionary = manager.get_runtime_by_script_id("checkout_change")
+	_check(runtime.get("status", "") == ScriptRuntimeManager.STATUS_FINISHED and client.result_ok,
+		"Executor Python-like deve ler o pagamento aninhado e concluir a venda.")
+	_check(_quantity(101) == 3 and _quantity(103) == 2, "Venda com troco deve consumir o estoque real.")
+	client.result_closed.emit()
+	_check(GameManager.money == challenge.reward and _sale_events.size() == 1,
+		"Venda com troco deve creditar a recompensa e emitir um evento de venda.")
+	manager.queue_free()
+	client.queue_free()
+
+func _test_change_dialog(challenge: ChallengeData, pedido: Dictionary) -> void:
+	var customer = preload("res://scenes/Client/cliente.tscn").instantiate()
+	var hud := CanvasLayer.new()
+	add_child(hud)
+	customer._hud = hud
+	customer.show_request_dialog(challenge)
+	var dialog: Dictionary = customer.active_dialog.data
+	_check(str(dialog[2]["dialog"]).contains("R$ " + customer.formatar(pedido["pagamento"])),
+		"Dialogo deve mostrar exatamente o pagamento entregue por input.")
+	customer.dialogo_erro([challenge.expected_output[0]])
+	var feedback: Dictionary = customer.active_dialog.data
+	_check(str(feedback[1]["dialog"]).contains("total e troco"), "Script antigo deve receber feedback sobre a resposta incompleta.")
+	hud.queue_free()
+	customer.free()
 
 func _stock_challenge(items: Array, discount := false, with_change := false) -> ChallengeData:
 	var challenge := ChallengeData.new()
