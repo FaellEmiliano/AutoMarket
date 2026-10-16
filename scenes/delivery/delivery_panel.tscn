@@ -1,329 +1,88 @@
 [gd_scene format=3]
 
-[ext_resource type="Script" path="res://scenes/delivery/delivery_panel.gd" id="1_delivery"]
-[ext_resource type="Theme" path="res://assets/themes/game_ui_theme.tres" id="2_theme"]
-[ext_resource type="Texture2D" path="res://assets/sprites/menu2.png" id="3_menu2"]
+[ext_resource type="Script" path="res://scenes/delivery/delivery_panel.gd" id="1"]
+[ext_resource type="Theme" path="res://assets/themes/game_ui_theme.tres" id="2"]
+[ext_resource type="Script" path="res://scenes/delivery/delivery_map_renderer.gd" id="3"]
 
 [node name="DeliveryPanel" type="Control"]
 visible = false
-top_level = true
-z_index = 40
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-theme = ExtResource("2_theme")
-script = ExtResource("1_delivery")
+mouse_filter = 2
+theme = ExtResource("2")
+script = ExtResource("1")
 
-[node name="Backdrop" type="ColorRect" parent="."]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-color = Color(0, 0, 0, 0.34)
+[node name="WindowFrame" type="PanelContainer" parent="."]
+layout_mode = 0
+offset_left = 170.0
+offset_top = 24.0
+offset_right = 590.0
+offset_bottom = 650.0
+theme_type_variation = &"DeepPanel"
 
-[node name="WindowFrame" type="NinePatchRect" parent="."]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-offset_left = 24.0
-offset_top = 18.0
-offset_right = -24.0
-offset_bottom = -18.0
-grow_horizontal = 2
-grow_vertical = 2
-texture = ExtResource("3_menu2")
-region_rect = Rect2(4, 4, 42, 43)
-patch_margin_left = 5
-patch_margin_top = 5
-patch_margin_right = 5
-patch_margin_bottom = 5
-axis_stretch_horizontal = 2
-axis_stretch_vertical = 2
-
-[node name="OuterMargin" type="MarginContainer" parent="WindowFrame"]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_constants/margin_left = 18
-theme_override_constants/margin_top = 14
-theme_override_constants/margin_right = 18
-theme_override_constants/margin_bottom = 16
-
-[node name="RootLayout" type="VBoxContainer" parent="WindowFrame/OuterMargin"]
+[node name="Margin" type="MarginContainer" parent="WindowFrame"]
 layout_mode = 2
-theme_override_constants/separation = 9
+theme_override_constants/margin_left = 12
+theme_override_constants/margin_right = 12
+theme_override_constants/margin_top = 12
+theme_override_constants/margin_bottom = 12
 
-[node name="TopBar" type="HBoxContainer" parent="WindowFrame/OuterMargin/RootLayout"]
-custom_minimum_size = Vector2(0, 44)
+[node name="Scroll" type="ScrollContainer" parent="WindowFrame/Margin"]
 layout_mode = 2
-theme_override_constants/separation = 12
-
-[node name="TitleBlock" type="VBoxContainer" parent="WindowFrame/OuterMargin/RootLayout/TopBar"]
-layout_mode = 2
-size_flags_horizontal = 3
-
-[node name="Title" type="Label" parent="WindowFrame/OuterMargin/RootLayout/TopBar/TitleBlock"]
-layout_mode = 2
-theme_type_variation = &"TitleLabel"
-text = "DELIVERY ONLINE"
-
-[node name="MoneyLabel" type="Label" parent="WindowFrame/OuterMargin/RootLayout/TopBar"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(150, 0)
-layout_mode = 2
-theme_type_variation = &"CategoryLabel"
-text = "GRANA: R$ 0"
-horizontal_alignment = 2
-vertical_alignment = 1
-
-[node name="DiamondStrip" type="HBoxContainer" parent="WindowFrame/OuterMargin/RootLayout/TopBar"]
-custom_minimum_size = Vector2(92, 0)
-layout_mode = 2
-alignment = 1
-tooltip_text = "Diamantes\n\nCada relatório aprovado rende 1 diamante até o limite de 5.\n\nJunte 5 para comprar o upgrade Zerar."
-
-[node name="Icon" type="Label" parent="WindowFrame/OuterMargin/RootLayout/TopBar/DiamondStrip"]
-layout_mode = 2
-theme_override_colors/font_color = Color(0.38, 0.82, 1, 1)
-theme_override_font_sizes/font_size = 18
-text = "◆"
-
-[node name="DiamondsLabel" type="Label" parent="WindowFrame/OuterMargin/RootLayout/TopBar/DiamondStrip"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"SleepingLabel"
-text = "0 / 5"
-vertical_alignment = 1
-
-[node name="CloseButton" type="Button" parent="WindowFrame/OuterMargin/RootLayout/TopBar"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(92, 34)
-layout_mode = 2
-text = "FECHAR"
-
-[node name="StatusBanner" type="PanelContainer" parent="WindowFrame/OuterMargin/RootLayout"]
-layout_mode = 2
-theme_type_variation = &"InsetPanel"
-tooltip_text = "Aguardando declaração\n\nUse get_deliveries() para ler o relatório e declare_profit() para enviar os três lucros. A solução precisa usar função recursiva, if e for ou while."
-
-[node name="StatusLabel" type="Label" parent="WindowFrame/OuterMargin/RootLayout/StatusBanner"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"WarningLabel"
-text = "SISTEMA BLOQUEADO"
-horizontal_alignment = 1
-
-[node name="ContentScroll" type="ScrollContainer" parent="WindowFrame/OuterMargin/RootLayout"]
-layout_mode = 2
-size_flags_vertical = 3
 horizontal_scroll_mode = 0
 
-[node name="BodyGrid" type="GridContainer" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll"]
-unique_name_in_owner = true
+[node name="Layout" type="VBoxContainer" parent="WindowFrame/Margin/Scroll"]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/h_separation = 12
-theme_override_constants/v_separation = 12
-columns = 2
-
-[node name="ReportPanel" type="PanelContainer" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid"]
-custom_minimum_size = Vector2(420, 260)
-layout_mode = 2
-size_flags_horizontal = 3
-theme_type_variation = &"DeepPanel"
-
-[node name="Margin" type="MarginContainer" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid/ReportPanel"]
-layout_mode = 2
-theme_override_constants/margin_left = 14
-theme_override_constants/margin_top = 12
-theme_override_constants/margin_right = 14
-theme_override_constants/margin_bottom = 12
-
-[node name="Layout" type="VBoxContainer" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid/ReportPanel/Margin"]
-layout_mode = 2
-theme_override_constants/separation = 10
-
-[node name="Title" type="Label" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid/ReportPanel/Margin/Layout"]
-layout_mode = 2
-theme_type_variation = &"CategoryLabel"
-text = "ENTREGAS DO PERÍODO"
-
-[node name="Hint" type="Label" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid/ReportPanel/Margin/Layout"]
-layout_mode = 2
-theme_type_variation = &"SubtitleLabel"
-text = "get_deliveries() mantém estes dados até a aprovação"
-autowrap_mode = 3
-
-[node name="CategoryGrid" type="GridContainer" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid/ReportPanel/Margin/Layout"]
-unique_name_in_owner = true
-layout_mode = 2
-size_flags_vertical = 3
-theme_override_constants/h_separation = 8
-theme_override_constants/v_separation = 8
-columns = 3
-
-[node name="Normal" type="PanelContainer" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid/ReportPanel/Margin/Layout/CategoryGrid"]
-custom_minimum_size = Vector2(120, 120)
-layout_mode = 2
-theme_type_variation = &"InsetPanel"
-tooltip_text = "Entregas normais\n\nUsam o menor valor-base no cálculo do lucro."
-
-[node name="Layout" type="VBoxContainer" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid/ReportPanel/Margin/Layout/CategoryGrid/Normal"]
-layout_mode = 2
-alignment = 1
-
-[node name="Name" type="Label" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid/ReportPanel/Margin/Layout/CategoryGrid/Normal/Layout"]
-layout_mode = 2
-theme_type_variation = &"ItemNameLabel"
-text = "NORMAL"
-horizontal_alignment = 1
-
-[node name="NormalCount" type="Label" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid/ReportPanel/Margin/Layout/CategoryGrid/Normal/Layout"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"TitleLabel"
-text = "--"
-horizontal_alignment = 1
-
-[node name="Express" type="PanelContainer" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid/ReportPanel/Margin/Layout/CategoryGrid"]
-custom_minimum_size = Vector2(120, 120)
-layout_mode = 2
-theme_type_variation = &"InsetPanel"
-tooltip_text = "Entregas expressas\n\nUsam um valor-base maior que o das entregas normais."
-
-[node name="Layout" type="VBoxContainer" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid/ReportPanel/Margin/Layout/CategoryGrid/Express"]
-layout_mode = 2
-alignment = 1
-
-[node name="Name" type="Label" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid/ReportPanel/Margin/Layout/CategoryGrid/Express/Layout"]
-layout_mode = 2
-theme_type_variation = &"ItemNameLabel"
-text = "EXPRESSA"
-horizontal_alignment = 1
-
-[node name="ExpressCount" type="Label" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid/ReportPanel/Margin/Layout/CategoryGrid/Express/Layout"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"TitleLabel"
-text = "--"
-horizontal_alignment = 1
-
-[node name="Vip" type="PanelContainer" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid/ReportPanel/Margin/Layout/CategoryGrid"]
-custom_minimum_size = Vector2(120, 120)
-layout_mode = 2
-theme_type_variation = &"InsetPanel"
-tooltip_text = "Entregas VIP\n\nUsam o maior valor-base entre as três categorias."
-
-[node name="Layout" type="VBoxContainer" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid/ReportPanel/Margin/Layout/CategoryGrid/Vip"]
-layout_mode = 2
-alignment = 1
-
-[node name="Name" type="Label" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid/ReportPanel/Margin/Layout/CategoryGrid/Vip/Layout"]
-layout_mode = 2
-theme_type_variation = &"ItemNameLabel"
-text = "VIP"
-horizontal_alignment = 1
-
-[node name="VipCount" type="Label" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid/ReportPanel/Margin/Layout/CategoryGrid/Vip/Layout"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"TitleLabel"
-text = "--"
-horizontal_alignment = 1
-
-[node name="ResultPanel" type="PanelContainer" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid"]
-custom_minimum_size = Vector2(360, 260)
-layout_mode = 2
-size_flags_horizontal = 3
-theme_type_variation = &"DeepPanel"
-
-[node name="Margin" type="MarginContainer" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid/ResultPanel"]
-layout_mode = 2
-theme_override_constants/margin_left = 16
-theme_override_constants/margin_top = 12
-theme_override_constants/margin_right = 16
-theme_override_constants/margin_bottom = 12
-
-[node name="Layout" type="VBoxContainer" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid/ResultPanel/Margin"]
-layout_mode = 2
 theme_override_constants/separation = 8
 
-[node name="Title" type="Label" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid/ResultPanel/Margin/Layout"]
+[node name="Header" type="HBoxContainer" parent="WindowFrame/Margin/Scroll/Layout"]
 layout_mode = 2
+
+[node name="Title" type="Label" parent="WindowFrame/Margin/Scroll/Layout/Header"]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_type_variation = &"CategoryLabel"
-text = "ÚLTIMO RESULTADO"
+text = "DELIVERY • BAIRRO"
 
-[node name="ResultState" type="Label" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid/ResultPanel/Margin/Layout"]
+[node name="CloseButton" type="Button" parent="WindowFrame/Margin/Scroll/Layout/Header"]
 unique_name_in_owner = true
 layout_mode = 2
+text = "Fechar"
+
+[node name="StatusLabel" type="Label" parent="WindowFrame/Margin/Scroll/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
+autowrap_mode = 3
+text = "Delivery bloqueado"
+
+[node name="Map" type="Control" parent="WindowFrame/Margin/Scroll/Layout"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 300)
+layout_mode = 2
+mouse_filter = 2
+script = ExtResource("3")
+
+[node name="Legend" type="Label" parent="WindowFrame/Margin/Scroll/Layout"]
+layout_mode = 2
+autowrap_mode = 3
+text = "Azul: motoqueiro • Amarelo: destino\nLaranja: barricada • Marrom: buraco\nVerde-claro: rota • Verde: terrenos"
 theme_type_variation = &"SubtitleLabel"
-text = "Nenhum relatório aprovado ainda."
+
+[node name="ProgressLabel" type="Label" parent="WindowFrame/Margin/Scroll/Layout"]
+unique_name_in_owner = true
+layout_mode = 2
 autowrap_mode = 3
 
-[node name="Separator" type="HSeparator" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid/ResultPanel/Margin/Layout"]
-layout_mode = 2
-
-[node name="ResultNormal" type="Label" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid/ResultPanel/Margin/Layout"]
+[node name="FeedbackLabel" type="Label" parent="WindowFrame/Margin/Scroll/Layout"]
 unique_name_in_owner = true
 layout_mode = 2
-text = "Normal: --"
-
-[node name="ResultExpress" type="Label" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid/ResultPanel/Margin/Layout"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "Expressa: --"
-
-[node name="ResultVip" type="Label" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid/ResultPanel/Margin/Layout"]
-unique_name_in_owner = true
-layout_mode = 2
-text = "VIP: --"
-
-[node name="ResultTotal" type="Label" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid/ResultPanel/Margin/Layout"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"ItemNameLabel"
-text = "Lucro total: --"
-tooltip_text = "Lucro recebido\n\nDinheiro creditado pela última declaração aprovada."
-
-[node name="ResultDiamond" type="Label" parent="WindowFrame/OuterMargin/RootLayout/ContentScroll/BodyGrid/ResultPanel/Margin/Layout"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"SleepingLabel"
-text = "Diamante recebido: --"
-
-[node name="FeedbackPanel" type="PanelContainer" parent="WindowFrame/OuterMargin/RootLayout"]
-unique_name_in_owner = true
-visible = false
-layout_mode = 2
-theme_type_variation = &"InsetPanel"
-
-[node name="FeedbackLabel" type="Label" parent="WindowFrame/OuterMargin/RootLayout/FeedbackPanel"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"WarningLabel"
-text = "Feedback"
-horizontal_alignment = 1
 autowrap_mode = 3
 
-[node name="CooldownPanel" type="PanelContainer" parent="WindowFrame/OuterMargin/RootLayout"]
-unique_name_in_owner = true
+[node name="Hint" type="Label" parent="WindowFrame/Margin/Scroll/Layout"]
 layout_mode = 2
-theme_type_variation = &"InsetPanel"
-tooltip_text = "Próximo relatório\n\nDepois de uma declaração aprovada, o jogo prepara o próximo relatório automaticamente."
-
-[node name="CooldownLabel" type="Label" parent="WindowFrame/OuterMargin/RootLayout/CooldownPanel"]
-unique_name_in_owner = true
-layout_mode = 2
-theme_type_variation = &"WarningLabel"
-text = "Compre o upgrade Delivery Online para liberar os relatórios."
-horizontal_alignment = 1
 autowrap_mode = 3
+text = "[linha, coluna] • quatro direções\nConsulte a ajuda Delivery para a API."
+tooltip_text = "Leia entrega_atual() e mapa_entrega(). Calcule uma lista de coordenadas, incluindo origem e destino, e use enviar_rota(rota). Aguarde com wait(1) entre entregas."

@@ -1,0 +1,124 @@
+Godot Engine v4.7.2.stable.steam.ed1daf0bf - https://godotengine.org
+
+WARNING: Tentativa de salvar sem slot ativo.
+   at: push_warning (core/variant/variant_utility.cpp:1033)
+   GDScript backtrace (most recent call first):
+       [0] save_game (res://autoload/SaveManager.gd:72)
+       [1] salvar (res://autoload/SaveManager.gd:67)
+       [2] solicitar_save (res://autoload/SaveManager.gd:232)
+       [3] try_buy_stock (res://systems/StockSystem.gd:61)
+       [4] _test_new_save_and_economy (res://tests/integrated_progression_test.gd:55)
+       [5] _ready (res://tests/integrated_progression_test.gd:21)
+WARNING: Tentativa de salvar sem slot ativo.
+   at: push_warning (core/variant/variant_utility.cpp:1033)
+   GDScript backtrace (most recent call first):
+       [0] save_game (res://autoload/SaveManager.gd:72)
+       [1] salvar (res://autoload/SaveManager.gd:67)
+       [2] solicitar_save (res://autoload/SaveManager.gd:232)
+       [3] try_buy_stock (res://systems/StockSystem.gd:61)
+       [4] _test_manual_and_fixed_purchase_evidence (res://tests/integrated_progression_test.gd:71)
+       [5] _ready (res://tests/integrated_progression_test.gd:23)
+WARNING: Clientes pausados: estoque vazio. Reponha produtos para voltar a atender.
+   at: push_warning (core/variant/variant_utility.cpp:1033)
+   GDScript backtrace (most recent call first):
+       [0] _pausar_por_estoque_vazio (res://systems/ClientSpawner.gd:127)
+       [1] _test_empty_stock_recovery (res://tests/integrated_progression_test.gd:92)
+       [2] _ready (res://tests/integrated_progression_test.gd:24)
+WARNING: Tentativa de salvar sem slot ativo.
+   at: push_warning (core/variant/variant_utility.cpp:1033)
+   GDScript backtrace (most recent call first):
+       [0] save_game (res://autoload/SaveManager.gd:72)
+       [1] salvar (res://autoload/SaveManager.gd:67)
+       [2] solicitar_save (res://autoload/SaveManager.gd:232)
+       [3] try_buy_stock (res://systems/StockSystem.gd:61)
+       [4] _test_empty_stock_recovery (res://tests/integrated_progression_test.gd:94)
+       [5] _ready (res://tests/integrated_progression_test.gd:24)
+WARNING: Tentativa de salvar sem slot ativo.
+   at: push_warning (core/variant/variant_utility.cpp:1033)
+   GDScript backtrace (most recent call first):
+       [0] save_game (res://autoload/SaveManager.gd:72)
+       [1] salvar (res://autoload/SaveManager.gd:67)
+       [2] solicitar_save (res://autoload/SaveManager.gd:232)
+       [3] _emit_integrated_progress (res://systems/ChallengeSystem.gd:99)
+       [4] _on_integrated_sale_completed (res://systems/ChallengeSystem.gd:62)
+       [5] _finish_transaction (res://systems/TransactionManager.gd:108)
+       [6] _test_real_integrated_challenge (res://tests/integrated_progression_test.gd:133)
+WARNING: Tentativa de salvar sem slot ativo.
+   at: push_warning (core/variant/variant_utility.cpp:1033)
+   GDScript backtrace (most recent call first):
+       [0] save_game (res://autoload/SaveManager.gd:72)
+       [1] salvar (res://autoload/SaveManager.gd:67)
+       [2] solicitar_save (res://autoload/SaveManager.gd:232)
+       [3] _finish_transaction (res://systems/TransactionManager.gd:109)
+       [4] _test_real_integrated_challenge (res://tests/integrated_progression_test.gd:133)
+WARNING: Tentativa de salvar sem slot ativo.
+   at: push_warning (core/variant/variant_utility.cpp:1033)
+   GDScript backtrace (most recent call first):
+       [0] save_game (res://autoload/SaveManager.gd:72)
+       [1] salvar (res://autoload/SaveManager.gd:67)
+       [2] solicitar_save (res://autoload/SaveManager.gd:232)
+       [3] _emit_integrated_progress (res://systems/ChallengeSystem.gd:99)
+       [4] _on_integrated_sale_completed (res://systems/ChallengeSystem.gd:62)
+       [5] _finish_transaction (res://systems/TransactionManager.gd:108)
+       [6] _test_real_integrated_challenge (res://tests/integrated_progression_test.gd:133)
+WARNING: Tentativa de salvar sem slot ativo.
+   at: push_warning (core/variant/variant_utility.cpp:1033)
+   GDScript backtrace (most recent call first):
+       [0] save_game (res://autoload/SaveManager.gd:72)
+       [1] salvar (res://autoload/SaveManager.gd:67)
+       [2] solicitar_save (res://autoload/SaveManager.gd:232)
+       [3] _finish_transaction (res://systems/TransactionManager.gd:109)
+       [4] _test_real_integrated_challenge (res://tests/integrated_progression_test.gd:133)
+WARNING: Tentativa de salvar sem slot ativo.
+   at: push_warning (core/variant/variant_utility.cpp:1033)
+   GDScript backtrace (most recent call first):
+       [0] save_game (res://autoload/SaveManager.gd:72)
+       [1] salvar (res://autoload/SaveManager.gd:67)
+       [2] solicitar_save (res://autoload/SaveManager.gd:232)
+       [3] try_buy_stock (res://systems/StockSystem.gd:61)
+       [4] try_buy_stock_from_script (res://systems/StockSystem.gd:76)
+       [5] buy_stock (res://interpreter/runtime/godot_automarket_python_bridge.gd:54)
+       [6] _builtin_automarket_buy_stock (res://interpreter/python_like/runtime/python_like_executor.gd:1540)
+       [7] invoke (res://interpreter/python_like/runtime/python_like_builtin_function.gd:51)
+       [8] _process_builtin_call (res://interpreter/python_like/runtime/python_like_executor.gd:643)
+       [9] _process_frame (res://interpreter/python_like/runtime/python_like_executor.gd:220)
+       [10] step (res://interpreter/python_like/runtime/python_like_executor.gd:94)
+       [11] execute_operation_budget (res://interpreter/runtime/python_like_runtime_backend.gd:104)
+       [12] _process (res://systems/ScriptRuntimeManager.gd:266)
+WARNING: Tentativa de salvar sem slot ativo.
+   at: push_warning (core/variant/variant_utility.cpp:1033)
+   GDScript backtrace (most recent call first):
+       [0] save_game (res://autoload/SaveManager.gd:72)
+       [1] salvar (res://autoload/SaveManager.gd:67)
+       [2] solicitar_save (res://autoload/SaveManager.gd:232)
+       [3] _emit_integrated_progress (res://systems/ChallengeSystem.gd:99)
+       [4] _on_stock_purchase_completed (res://systems/ChallengeSystem.gd:85)
+       [5] try_buy_stock (res://systems/StockSystem.gd:62)
+       [6] try_buy_stock_from_script (res://systems/StockSystem.gd:76)
+       [7] buy_stock (res://interpreter/runtime/godot_automarket_python_bridge.gd:54)
+       [8] _builtin_automarket_buy_stock (res://interpreter/python_like/runtime/python_like_executor.gd:1540)
+       [9] invoke (res://interpreter/python_like/runtime/python_like_builtin_function.gd:51)
+       [10] _process_builtin_call (res://interpreter/python_like/runtime/python_like_executor.gd:643)
+       [11] _process_frame (res://interpreter/python_like/runtime/python_like_executor.gd:220)
+       [12] step (res://interpreter/python_like/runtime/python_like_executor.gd:94)
+       [13] execute_operation_budget (res://interpreter/runtime/python_like_runtime_backend.gd:104)
+       [14] _process (res://systems/ScriptRuntimeManager.gd:266)
+WARNING: Tentativa de salvar sem slot ativo.
+   at: push_warning (core/variant/variant_utility.cpp:1033)
+   GDScript backtrace (most recent call first):
+       [0] save_game (res://autoload/SaveManager.gd:72)
+       [1] salvar (res://autoload/SaveManager.gd:67)
+       [2] solicitar_save (res://autoload/SaveManager.gd:232)
+       [3] _emit_integrated_progress (res://systems/ChallengeSystem.gd:99)
+       [4] _on_integrated_sale_completed (res://systems/ChallengeSystem.gd:62)
+       [5] _finish_transaction (res://systems/TransactionManager.gd:108)
+       [6] _test_real_integrated_challenge (res://tests/integrated_progression_test.gd:133)
+WARNING: Tentativa de salvar sem slot ativo.
+   at: push_warning (core/variant/variant_utility.cpp:1033)
+   GDScript backtrace (most recent call first):
+       [0] save_game (res://autoload/SaveManager.gd:72)
+       [1] salvar (res://autoload/SaveManager.gd:67)
+       [2] solicitar_save (res://autoload/SaveManager.gd:232)
+       [3] _finish_transaction (res://systems/TransactionManager.gd:109)
+       [4] _test_real_integrated_challenge (res://tests/integrated_progression_test.gd:133)
+INTEGRATED_PROGRESSION_TEST_OK

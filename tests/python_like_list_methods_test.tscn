@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://tests/python_like_list_methods_test.gd" id="1"]
+
+[node name="ListMethodsTest" type="Node"]
+script = ExtResource("1")

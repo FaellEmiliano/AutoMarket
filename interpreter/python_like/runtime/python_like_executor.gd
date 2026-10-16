@@ -45,6 +45,8 @@ var _pending_suspension
 var _next_suspension_token: int = 1
 var _delivery_tracking_active: bool = false
 var _delivery_recursive_functions := {}
+# Reuse methods per list instead of retaining a fresh callable on every loop.
+var _list_methods := {}
 
 
 func configure_source_identity(new_runtime_id: String, new_script_id: String,
@@ -176,6 +178,7 @@ func stop() -> void:
 	_pending_suspension = null
 	_delivery_tracking_active = false
 	_delivery_recursive_functions.clear()
+	_list_methods.clear()
 	if _lifecycle != null:
 		_lifecycle.discard_all()
 
@@ -189,6 +192,7 @@ func dispose() -> void:
 	_pending_suspension = null
 	_delivery_tracking_active = false
 	_delivery_recursive_functions.clear()
+	_list_methods.clear()
 	if _lifecycle != null:
 		_lifecycle.discard_all()
 	_lifecycle = null
@@ -248,6 +252,8 @@ func _process_frame(frame) -> void:
 		_process_comparison(frame)
 	elif frame is Frames.MembershipFrame:
 		_process_membership(frame)
+	elif frame is Frames.AttributeReadFrame:
+		_process_attribute_read(frame)
 	elif frame is Frames.IndexReadFrame:
 		_process_index_read(frame)
 	elif frame is Frames.IndexWriteFrame:
@@ -1412,6 +1418,9 @@ func _register_standard_builtins(environment) -> RuntimeResult:
 		["get_deliveries", 0, 0, Callable(self, "_builtin_automarket_get_deliveries")],
 		["declare_profit", 1, 1, Callable(self, "_builtin_automarket_declare_profit")],
 		["wait", 1, 1, Callable(self, "_builtin_automarket_wait")],
+		["mapa_entrega", 0, 0, Callable(self, "_builtin_delivery_map")],
+		["entrega_atual", 0, 0, Callable(self, "_builtin_delivery_current")],
+		["enviar_rota", 1, 1, Callable(self, "_builtin_delivery_route")],
 	]
 	for definition in definitions:
 		var builtin_name: String = definition[0]
@@ -1717,6 +1726,8 @@ func _push_node(node) -> void:
 		frame = Frames.ComparisonChainFrame.new(node)
 	elif node is Ast.IndexExpressionNode:
 		frame = Frames.IndexReadFrame.new(node)
+	elif node is Ast.AttributeExpressionNode:
+		frame = Frames.AttributeReadFrame.new(node)
 	elif node is Ast.CallExpressionNode:
 		frame = Frames.CallFrame.new(node)
 	else:
@@ -1811,3 +1822,80 @@ func _numeric_float(value) -> float:
 	if value is Values.BooleanValue:
 		return 1.0 if value.boolean_value else 0.0
 	return float(value.numeric_value)
+
+
+func _builtin_delivery_map(_arguments: Array) -> RuntimeResult:
+	if not _has_automarket_bridge():
+		return _bridge_unavailable("mapa_entrega")
+	return _finish_bridge_call(_automarket_bridge.delivery_map(_automarket_context()))
+
+func _builtin_delivery_current(_arguments: Array) -> RuntimeResult:
+	if not _has_automarket_bridge():
+		return _bridge_unavailable("entrega_atual")
+	return _finish_bridge_call(_automarket_bridge.delivery_current(_automarket_context()))
+
+func _builtin_delivery_route(arguments: Array) -> RuntimeResult:
+	if not _has_automarket_bridge():
+		return _bridge_unavailable("enviar_rota")
+	var candidate = arguments[0]
+	var native_route: Variant = null
+	# Inspect only the two list levels in this API. Never recursively convert an
+	# arbitrary player graph (cycles/deep nesting) or an unbounded list in one step.
+	if candidate is Collections.ListValue:
+		if candidate.size() > 841: # Largest supported neighborhood is 29 x 29 cells.
+			return _finish_bridge_call(AutoMarketBridge.Response.succeeded(false,
+				["A rota tem coordenadas demais para este bairro."]))
+		native_route = []
+		for index in range(candidate.size()):
+			var coordinate_result = candidate.item_at_position(index)
+			if coordinate_result.has_failure():
+				return coordinate_result
+			var coordinate = coordinate_result.value()
+			if not coordinate is Collections.ListValue or coordinate.size() != 2:
+				native_route.append(null)
+				break
+			var pair: Array = []
+			for axis in range(2):
+				var item_result = coordinate.item_at_position(axis)
+				if item_result.has_failure():
+					return item_result
+				var item = item_result.value()
+				pair.append(item.numeric_value if item is Values.IntegerValue else null)
+			native_route.append(pair)
+	return _finish_bridge_call(_automarket_bridge.delivery_route(native_route, _automarket_context()))
+
+
+func _process_attribute_read(frame) -> void:
+	if frame.state == 0:
+		frame.state = 1
+		_push_node(frame.node.object)
+		return
+	if not frame.has_incoming:
+		return
+	frame.receiver = frame.take_incoming().value()
+	var attribute: String = frame.node.attribute
+	if not frame.receiver is Collections.ListValue or attribute not in ["append", "pop"]:
+		_fail(_new_failure(
+			"attribute", "ATTRIBUTE_NOT_FOUND",
+			"O tipo '%s' não possui o atributo '%s'." % [frame.receiver.type_name(), attribute],
+			frame.node.attribute_span, {"type": frame.receiver.type_name(), "attribute": attribute}
+		))
+		return
+	var identity: int = frame.receiver.identity_id()
+	if not _list_methods.has(identity):
+		_list_methods[identity] = {}
+	var methods: Dictionary = _list_methods[identity]
+	if not methods.has(attribute):
+		var implementation := Callable(self, "_builtin_list_append" if attribute == "append" else "_builtin_list_pop").bind(frame.receiver)
+		methods[attribute] = _track(BuiltinFunctionValue.new(
+			"list." + attribute, 1 if attribute == "append" else 0, 1, implementation
+		))
+	_complete(RuntimeResult.success(methods[attribute]))
+
+
+func _builtin_list_append(arguments: Array, receiver: Collections.ListValue) -> RuntimeResult:
+	return receiver.append(arguments[0])
+
+
+func _builtin_list_pop(arguments: Array, receiver: Collections.ListValue) -> RuntimeResult:
+	return receiver.pop_last() if arguments.is_empty() else receiver.pop_at(arguments[0])

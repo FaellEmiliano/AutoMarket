@@ -14,7 +14,9 @@ var integrated_progress := {
 	"completed": false,
 	"valid_sales": 0,
 	"script_purchases": 0,
-	"recoveries": 0
+	"recoveries": 0,
+	"delivery_completed": false,
+	"deliveries": 0
 }
 var _pending_recovery_codes := {}
 
@@ -40,7 +42,9 @@ func load_save_data(data: Dictionary) -> void:
 		"completed": bool(data.get("completed", false)),
 		"valid_sales": maxi(0, int(data.get("valid_sales", 0))),
 		"script_purchases": maxi(0, int(data.get("script_purchases", 0))),
-		"recoveries": maxi(0, int(data.get("recoveries", 0)))
+		"recoveries": maxi(0, int(data.get("recoveries", 0))),
+		"delivery_completed": bool(data.get("delivery_completed", false)),
+		"deliveries": maxi(0, int(data.get("deliveries", 0)))
 	}
 	_pending_recovery_codes.clear()
 
@@ -341,3 +345,11 @@ func generate_stock_challenge(promotion: Variant = null) -> ChallengeData:
 
 func generate_change_challenge(apply_discount := false, is_golden := false) -> ChallengeData:
 	return _build_challenge({"change": true, "discount": apply_discount, "golden": is_golden})
+
+
+func record_delivery(count: int) -> void:
+	integrated_progress["deliveries"] = maxi(int(integrated_progress.get("deliveries", 0)), count)
+	if count >= DeliveryConfig.REQUIRED_DELIVERIES and not bool(integrated_progress.get("delivery_completed", false)):
+		integrated_progress["delivery_completed"] = true
+		EventBus.emit_signal("player_notification", "Desafio Delivery concluído: três entregas válidas! A automação pode continuar.")
+	integrated_challenge_progress.emit(get_integrated_challenge_status())

@@ -22,7 +22,7 @@ func _ready() -> void:
 	var categories := {}
 	for topic in HelpProgressData.get_active_topics(HelpTopicsData.TOPICS):
 		categories[str(topic.get("category", ""))] = true
-	assert(categories.size() == 3, "A ajuda ativa deve usar três categorias")
+	assert(categories.size() == 3, "A ajuda ativa deve manter conceitos, comandos e desafios")
 	for category in ["Aprender a programar", "Comandos do jogo", "Desafios do mercado"]:
 		assert(categories.has(category), "Seção ausente: %s" % category)
 	var all_topic_ids := _topic_ids(HelpTopicsData.TOPICS)
@@ -76,8 +76,13 @@ func _ready() -> void:
 	assert(stock_body.text.contains("buy_stock") and stock_body.text.contains("get_stock"), "Guia de estoque não consolidou os comandos")
 	DeliverySystem.unlock(false)
 	var delivery_ids := _topic_ids(help_menu.get("_visible_topics"))
-	assert(not delivery_ids.has("delivery_overview") and delivery_ids.size() == initial_ids.size(),
-		"Delivery legado deve continuar oculto mesmo se a feature existir no save")
+	assert(delivery_ids.has("delivery_overview") and delivery_ids.size() == initial_ids.size() + 6,
+		"Delivery libera conceitos, três comandos e o desafio de navegação")
+	for id in ["delivery_matrix", "delivery_search"]:
+		assert(help_menu.call("_find_topic", id).category == "Aprender a programar", "Conceitos do delivery devem ficar em Aprender a programar")
+	for id in ["delivery_api", "delivery_map_api", "delivery_route_api"]:
+		assert(help_menu.call("_find_topic", id).category == "Comandos do jogo", "API do delivery deve ficar em Comandos do jogo")
+	assert(help_menu.call("_find_topic", "delivery_overview").category == "Desafios do mercado", "Objetivo do delivery deve ficar nos desafios")
 	FeatureManager.unlock_feature(FeatureManager.FEATURE_CHANGE)
 	var change_ids := _topic_ids(help_menu.get("_visible_topics"))
 	assert(change_ids.has("change_client"), "A ajuda de troco deve aparecer após o upgrade.")
@@ -136,6 +141,9 @@ func _test_documentation_examples() -> void:
 		for block in code_blocks.search_all(str(topic.text)):
 			source += block.get_string(1) + "\n"
 		var bridge := FakeBridge.new()
+		bridge.set_response("enviar_rota", true)
+		bridge.set_response("mapa_entrega", [[1, 1, 1], [2, 0, 1], [1, 1, 1]])
+		bridge.set_response("entrega_atual", {"id": 1, "origem": [0, 0], "destino": [2, 2]})
 		bridge.set_response("input", {"carrinho": {101: 2, 102: 1}})
 		bridge.set_response("tabela_produtos", ProductCatalog.snapshot())
 		bridge.set_response("get_stock", {101: 5, 102: 10, 103: 0, 104: 5, 105: 0, 106: 5})
@@ -167,7 +175,7 @@ func _test_documentation_examples() -> void:
 		var lines = executor.output_lines()
 		match str(topic.id):
 			"python_lists":
-				assert(lines == ["2", "[2, 3, 4]", "3", "2", "3", "4"], "Lista deve produzir os valores documentados")
+				assert(lines == ["2", "[2, 3, 4]", "3", "2", "3", "4", "[10, 20, 30]", "None", "30", "10", "[20]"], "Lista deve produzir os valores documentados")
 			"python_if":
 				assert(lines == ["Poucas unidades", "True"], "Condição deve produzir o ramo documentado")
 			"product_table":

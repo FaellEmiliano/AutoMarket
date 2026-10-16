@@ -44,7 +44,13 @@
         "confidence_score": 0.85,
         "source_file": "AGENTS.md"
       }
-    ]
+    ],
+    "delivery_navigation_update": {
+      "date": "2026-10-15",
+      "method": "Scoped manual extraction verified against GDScript; no global rebuild",
+      "input_tokens": 0,
+      "output_tokens": 0
+    }
   },
   "nodes": [
     {
@@ -1096,6 +1102,116 @@
       "source_file": "assets/icons/ide_error.svg",
       "source_location": null,
       "source_url": null
+    },
+    {
+      "id": "delivery_navigation_delivery",
+      "label": "Delivery navigation lifecycle",
+      "community": 44,
+      "community_name": "Delivery Navigation",
+      "file_type": "code",
+      "norm_label": "delivery navigation lifecycle",
+      "source_file": "systems/DeliverySystem.gd",
+      "source_location": "submit_route / advance_driver / _finish_delivery"
+    },
+    {
+      "id": "delivery_navigation_generator",
+      "label": "Random spanning tree neighborhood",
+      "community": 44,
+      "community_name": "Delivery Navigation",
+      "file_type": "code",
+      "norm_label": "random spanning tree neighborhood",
+      "source_file": "systems/DeliveryMapGenerator.gd",
+      "source_location": "generate"
+    },
+    {
+      "id": "delivery_navigation_validator",
+      "label": "Simple route validation",
+      "community": 44,
+      "community_name": "Delivery Navigation",
+      "file_type": "code",
+      "norm_label": "simple route validation",
+      "source_file": "systems/DeliveryRouteValidator.gd",
+      "source_location": "validate"
+    },
+    {
+      "id": "delivery_navigation_renderer",
+      "label": "Solid color neighborhood renderer",
+      "community": 44,
+      "community_name": "Delivery Navigation",
+      "file_type": "code",
+      "norm_label": "solid color neighborhood renderer",
+      "source_file": "scenes/delivery/delivery_map_renderer.gd",
+      "source_location": "_draw / _draw_marker"
+    },
+    {
+      "id": "delivery_navigation_bridge",
+      "label": "Python navigation bridge",
+      "community": 44,
+      "community_name": "Delivery Navigation",
+      "file_type": "code",
+      "norm_label": "python navigation bridge",
+      "source_file": "interpreter/runtime/godot_automarket_python_bridge.gd",
+      "source_location": "delivery_current / delivery_map / delivery_route"
+    },
+    {
+      "id": "delivery_navigation_executor",
+      "label": "Python navigation builtins",
+      "community": 44,
+      "community_name": "Delivery Navigation",
+      "file_type": "code",
+      "norm_label": "python navigation builtins",
+      "source_file": "interpreter/python_like/runtime/python_like_executor.gd",
+      "source_location": "_builtin_delivery_route"
+    },
+    {
+      "id": "delivery_navigation_progress",
+      "label": "Delivery challenge progression",
+      "community": 44,
+      "community_name": "Delivery Navigation",
+      "file_type": "code",
+      "norm_label": "delivery challenge progression",
+      "source_file": "systems/ChallengeSystem.gd",
+      "source_location": "record_delivery"
+    },
+    {
+      "id": "delivery_navigation_config",
+      "label": "Delivery navigation configuration",
+      "community": 44,
+      "community_name": "Delivery Navigation",
+      "file_type": "code",
+      "norm_label": "delivery navigation configuration",
+      "source_file": "data/DeliveryConfig.gd",
+      "source_location": "INTERSECTIONS / MIN_ROUTE_MOVES / REWARD"
+    },
+    {
+      "id": "delivery_navigation_tests",
+      "label": "Delivery navigation regressions",
+      "community": 44,
+      "community_name": "Delivery Navigation",
+      "file_type": "code",
+      "norm_label": "delivery navigation regressions",
+      "source_file": "tests/delivery_system_test.gd",
+      "source_location": "_test_generator / _test_interpreter"
+    },
+    {
+      "id": "python_list_methods",
+      "label": "Python bound list methods",
+      "community": 44,
+      "community_name": "Delivery Navigation",
+      "file_type": "code",
+      "norm_label": "python bound list methods",
+      "source_file": "interpreter/python_like/runtime/python_like_executor.gd",
+      "source_location": "_process_attribute_read / _builtin_list_append / _builtin_list_pop"
+    },
+    {
+      "id": "python_list_storage",
+      "label": "Python list storage operations",
+      "community": 44,
+      "community_name": "Delivery Navigation",
+      "file_type": "code",
+      "norm_label": "python list storage operations",
+      "source_file": "interpreter/python_like/runtime/python_like_collections.gd",
+      "source_location": "ListValue.append / pop_last / pop_at"
     }
   ],
   "links": [
@@ -1487,6 +1603,126 @@
       "confidence_score": 0.95,
       "source_file": "docs/agents/issue-tracker.md",
       "source_location": "GitHub label operations",
+      "weight": 1.0
+    },
+    {
+      "source": "delivery_navigation_delivery",
+      "target": "delivery_navigation_generator",
+      "relation": "generates_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "systems/DeliverySystem.gd",
+      "source_location": "submit_route / advance_driver / _finish_delivery",
+      "weight": 1.0
+    },
+    {
+      "source": "delivery_navigation_delivery",
+      "target": "delivery_navigation_validator",
+      "relation": "validates_with",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "systems/DeliverySystem.gd",
+      "source_location": "submit_route / advance_driver / _finish_delivery",
+      "weight": 1.0
+    },
+    {
+      "source": "delivery_navigation_renderer",
+      "target": "delivery_navigation_delivery",
+      "relation": "observes",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "scenes/delivery/delivery_map_renderer.gd",
+      "source_location": "_draw / _draw_marker",
+      "weight": 1.0
+    },
+    {
+      "source": "delivery_navigation_bridge",
+      "target": "delivery_navigation_delivery",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "interpreter/runtime/godot_automarket_python_bridge.gd",
+      "source_location": "delivery_current / delivery_map / delivery_route",
+      "weight": 1.0
+    },
+    {
+      "source": "delivery_navigation_executor",
+      "target": "delivery_navigation_bridge",
+      "relation": "calls",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "interpreter/python_like/runtime/python_like_executor.gd",
+      "source_location": "_builtin_delivery_route",
+      "weight": 1.0
+    },
+    {
+      "source": "delivery_navigation_delivery",
+      "target": "delivery_navigation_progress",
+      "relation": "records_arrival",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "systems/DeliverySystem.gd",
+      "source_location": "submit_route / advance_driver / _finish_delivery",
+      "weight": 1.0
+    },
+    {
+      "source": "delivery_navigation_delivery",
+      "target": "delivery_navigation_config",
+      "relation": "configured_by",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "systems/DeliverySystem.gd",
+      "source_location": "submit_route / advance_driver / _finish_delivery",
+      "weight": 1.0
+    },
+    {
+      "source": "delivery_navigation_tests",
+      "target": "delivery_navigation_delivery",
+      "relation": "tests",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "tests/delivery_system_test.gd",
+      "source_location": "_test_generator / _test_interpreter",
+      "weight": 1.0
+    },
+    {
+      "source": "delivery_navigation_tests",
+      "target": "delivery_navigation_generator",
+      "relation": "tests",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "tests/delivery_system_test.gd",
+      "source_location": "_test_generator / _test_interpreter",
+      "weight": 1.0
+    },
+    {
+      "source": "delivery_navigation_tests",
+      "target": "delivery_navigation_validator",
+      "relation": "tests",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "tests/delivery_system_test.gd",
+      "source_location": "_test_generator / _test_interpreter",
+      "weight": 1.0
+    },
+    {
+      "source": "delivery_navigation_executor",
+      "target": "python_list_methods",
+      "relation": "resolves_attributes",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "interpreter/python_like/runtime/python_like_executor.gd",
+      "source_location": "_push_node / _process_frame",
+      "weight": 1.0
+    },
+    {
+      "source": "python_list_methods",
+      "target": "python_list_storage",
+      "relation": "delegates_mutation",
+      "confidence": "EXTRACTED",
+      "confidence_score": 1.0,
+      "source_file": "interpreter/python_like/runtime/python_like_executor.gd",
+      "source_location": "_builtin_list_append / _builtin_list_pop",
       "weight": 1.0
     }
   ],

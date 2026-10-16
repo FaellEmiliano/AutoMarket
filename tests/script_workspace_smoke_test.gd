@@ -76,7 +76,7 @@ func _test_delivery_document() -> void:
 	assert(not delivery_id.is_empty(), "Delivery deve receber um id próprio.")
 	assert(workspace.get_script_document(delivery_id).get("title") == "Delivery", "A aba reservada deve se chamar Delivery.")
 	assert(workspace.get_script_document(delivery_id).get("language") == "python_like", "A aba reservada Delivery deve iniciar como Python-like.")
-	assert(workspace.get_script_document(delivery_id).get("source").contains("get_deliveries()"), "O template Delivery deve usar sintaxe Python-like.")
+	assert(workspace.get_script_document(delivery_id).get("source").contains("entrega_atual()"), "O template Delivery deve usar sintaxe Python-like.")
 	assert(not workspace.get_script_document(delivery_id).get("source").contains("int main"), "O template Delivery não pode conter sintaxe C-like.")
 	workspace.rename_script(delivery_id, "Outro nome")
 	assert(workspace.get_script_document(delivery_id).get("title") == "Delivery", "A aba Delivery não pode ser renomeada.")

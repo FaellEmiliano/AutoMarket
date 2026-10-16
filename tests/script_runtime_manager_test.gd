@@ -407,29 +407,15 @@ func _test_python_like_wait_stop_and_isolation(manager) -> void:
 func _test_python_like_delivery_boundary() -> void:
 	DeliverySystem.unlock(false)
 	var delivery_script_id := InterpreterSystem.ensure_delivery_script()
-	_check(DeliverySystem.debug_set_report([1, 2, 3]), "Teste deve preparar relatório real para o Python-like.")
 	var runtime_id: String = InterpreterSystem.runtime_manager.start_script(
 		delivery_script_id,
-		"relatorio = get_deliveries()\nprint(relatorio)\n",
+		"entrega = entrega_atual()\nmapa = mapa_entrega()\nprint(mapa[0][0])\nprint(enviar_rota([]))\n",
 		"DeliveryPython", null, "python_like"
 	)
 	await _wait_until_not_running(InterpreterSystem.runtime_manager, delivery_script_id)
 	var runtime: Dictionary = InterpreterSystem.runtime_manager.get_runtime(runtime_id)
-	_check(str(runtime.get("status", "")) == ScriptRuntimeManager.STATUS_FINISHED, "get_deliveries deve funcionar com contexto real do runtime Python-like.")
-	_check(str(runtime.get("output", "")).contains("[1, 2, 3]"), "Relatório real deve atravessar a conversão para lista Python-like.")
-
-	_check(DeliverySystem.debug_set_report([1, 2, 3]), "Teste deve preparar novo relatório para validar a fronteira pedagógica.")
-	runtime_id = InterpreterSystem.runtime_manager.start_script(
-		delivery_script_id,
-		"get_deliveries()\ndeclare_profit([2, 12, 49])\n",
-		"DeliveryPython", null, "python_like"
-	)
-	await _wait_until_not_running(InterpreterSystem.runtime_manager, delivery_script_id)
-	runtime = InterpreterSystem.runtime_manager.get_runtime(runtime_id)
-	_check(str(runtime.get("status", "")) == ScriptRuntimeManager.STATUS_FINISHED,
-		"Rejeição pedagógica de declare_profit Python-like não deve virar erro do interpretador.")
-	_check(str(runtime.get("output", "")).contains("função criada por você"),
-		"declare_profit Python-like deve usar os fatos neutros e manter o feedback pedagógico.")
+	_check(str(runtime.get("status", "")) == ScriptRuntimeManager.STATUS_FINISHED, "Nova API deve funcionar com runtime real.")
+	_check(str(runtime.get("output", "")).contains("rota está vazia"), "Recusa deve trazer mensagem compreensível sem encerrar o interpretador.")
 
 
 func _test_infinite_print_does_not_freeze(manager) -> void:

@@ -7,8 +7,15 @@ const LEGACY_C_LIKE_LANGUAGE := "c_like"
 const DEFAULT_SOURCE := "print(\"Hello, World!\")\n"
 const DEFAULT_TITLE := "Principal"
 const DELIVERY_TITLE := "Delivery"
-const DELIVERY_SOURCE := """# Leia o relatório do Delivery e declare os lucros.
-entregas = get_deliveries()
+const DELIVERY_SOURCE := """# Entrega: leia o mapa e calcule uma rota com DFS ou BFS.
+# Consulte a ajuda Delivery. Não use input() ou send() para navegar.
+while True:
+    entrega = entrega_atual()
+    if entrega:
+        mapa = mapa_entrega()
+        print(entrega)
+        # Calcule rota incluindo origem e destino; depois: enviar_rota(rota)
+    wait(1)
 """
 
 var active_script_id := ""

@@ -39,8 +39,8 @@ func _ready() -> void:
 	_check(UpgradeManager.reward_multiplier == 1.0, "Upgrade antigo do save não deve alterar a recompensa ativa.")
 	_check(UpgradeManager.get_spawn_delay_range() == Vector2(5.0, 8.0), "Upgrade antigo do save não deve alterar o fluxo ativo.")
 	DeliverySystem._process(0.0)
-	_check(DeliverySystem.state == DeliverySystem.State.LOCKED,
-		"Delivery antigo deve permanecer travado e sem processamento em segundo plano.")
+	_check(DeliverySystem.state == DeliverySystem.State.WAITING_DECLARATION,
+		"Novo Delivery deve operar sem mudar os pedidos do mercado.")
 
 	var game := GameScene.instantiate()
 	var shop := game.get_node("ShopMenu") as Control
@@ -57,7 +57,7 @@ func _ready() -> void:
 	game._atualizar_estado_mecanicas()
 	_check(shop.visible and shop.process_mode == Node.PROCESS_MODE_INHERIT,
 		"A experiência ativa deve mostrar e habilitar a loja.")
-	_check(not delivery_button.visible and not delivery_panel.visible, "Delivery antigo não deve aparecer.")
+	_check(delivery_button.visible and not delivery_panel.visible, "Acesso ao Delivery aparece; painel inicia fechado.")
 	_check(not completion.visible, "Conclusão antiga não deve aparecer.")
 	game.free()
 

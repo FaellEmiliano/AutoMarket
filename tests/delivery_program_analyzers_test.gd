@@ -137,8 +137,8 @@ func _test_missing_facts_are_rejected() -> void:
 		"runtime_id": "test", "script_id": "test"
 	})
 	_check(not response.is_success()
-		and response.code == "AUTOMARKET_PROGRAM_FACTS_UNAVAILABLE",
-		"Bridge deve produzir falha tipada quando fatos não estiverem disponíveis.")
+		and response.code == "AUTOMARKET_DELIVERY_RETIRED",
+		"API aposentada deve falhar com orientação para navegação.")
 
 
 func _python_facts(source: String):

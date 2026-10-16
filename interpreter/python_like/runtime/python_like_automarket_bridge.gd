@@ -95,3 +95,13 @@ func _unsupported(operation: String) -> Response:
 		"A bridge não implementa a operação '%s'." % operation,
 		"bridge", {"operation": operation}
 	)
+
+
+func delivery_map(_context: Dictionary) -> Response:
+	return _unsupported("mapa_entrega")
+
+func delivery_current(_context: Dictionary) -> Response:
+	return _unsupported("entrega_atual")
+
+func delivery_route(_route: Variant, _context: Dictionary) -> Response:
+	return _unsupported("enviar_rota")

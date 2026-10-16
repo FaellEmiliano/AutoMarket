@@ -91,6 +91,12 @@ New games begin with **Mercado Automatizado** and a single free-form `Principal`
 
 The challenge is evaluated from gameplay events rather than source-code shape or file identity. Completion requires three valid sales while at least one automation is active, at least one successful purchase made by a script, and a real recovery of a product that dropped below its catalog minimum. Manual purchases remain available but do not count as automation evidence.
 
+## Delivery navigation
+
+After change and promotions, Delivery Online unlocks automated navigation through a residential street grid. The player receives a matrix and submits a simple orthogonal route. Random spanning trees guarantee exactly one valid simple path; rewards arrive only after the driver reaches the destination. The initial goal is three deliveries, followed by continuous automation.
+
+See [the delivery architecture, API, migration and checks](docs/delivery-navigation.md) and the runnable [iterative BFS example](docs/examples/delivery_bfs.py).
+
 ## Technologies
 
 - **Godot 4.7**

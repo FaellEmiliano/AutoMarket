@@ -122,11 +122,11 @@ const UPGRADES = {
 	"delivery_online": {
 		"nome": "Delivery Online",
 		"categoria": "gameplay",
-		"descricao": "Abre uma plataforma de entregas. Calcule e declare os lucros para ganhar dinheiro e diamantes",
-		"tooltip": "O Delivery gera relatórios com entregas normais, expressas e VIP. A solução usa função recursiva, if, array e for ou while para calcular as três categorias.",
+		"descricao": "Programe rotas pelo bairro e ganhe moedas a cada chegada. Complete três entregas.",
+		"tooltip": "Use matrizes e uma busca DFS ou BFS para encontrar o único caminho livre. Não exige recursão.",
 		"preco": DeliveryConfigData.DELIVERY_UNLOCK_COST,
 		"currency": "money",
-		"requer": ["premium_3", "marketing_3"],
+		"requer": ["gameplay_promotions"],
 		"help_topic": "delivery_overview",
 		"efeito": {"tipo": "unlock_delivery"}
 	},

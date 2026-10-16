@@ -168,8 +168,8 @@ func _ready() -> void:
 	_check(ide.get_code_text().contains("wait"), "Reabrir preserva source")
 	FeatureManager.unlock_feature(FeatureManager.FEATURE_DELIVERY)
 	var delivery := InterpreterSystem.get_delivery_script_id()
-	_check(delivery.is_empty(), "Fluxo legado de Delivery não cria script")
-	_check(not ide.explorer.script_items.has(delivery), "Delivery não aparece na experiência ativa")
+	_check(not delivery.is_empty(), "Delivery cria script reservado")
+	_check(ide.explorer.script_items.has(delivery), "Delivery aparece na experiência ativa")
 	StudentIdentity.show_student("Aluno de teste da IDE")
 	_check(StudentIdentity.layer > menu.workspace_layer.layer, "Identidade acima da IDE")
 	for dimensions in [Vector2i(1152,648), Vector2i(1280,720), Vector2i(1366,768), Vector2i(1920,1080), Vector2i(960,720), Vector2i(640,360)]:

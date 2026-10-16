@@ -1,523 +1,270 @@
 extends Node
 
-const Config = preload("res://data/DeliveryConfig.gd")
-
-var _failures: Array[String] = []
-var _money_events := 0
-var _delivery_script_id := ""
-var _notifications: Array[String] = []
-
+const Generator = preload("res://systems/DeliveryMapGenerator.gd")
+const Validator = preload("res://systems/DeliveryRouteValidator.gd")
+const Bridge = preload("res://interpreter/runtime/godot_automarket_python_bridge.gd")
+const PanelScene = preload("res://scenes/delivery/delivery_panel.tscn")
+var failures: Array[String] = []
+var paid := 0
+var max_operations := 0
 
 func _ready() -> void:
-	if not EventBus.update_money.is_connected(_on_update_money):
-		EventBus.update_money.connect(_on_update_money)
-	if not EventBus.player_notification.is_connected(_on_notification):
-		EventBus.player_notification.connect(_on_notification)
-
-	_reset_all()
-	_test_calculation_table()
-	_test_delivery_upgrade_unlock()
-	_reset_all()
-	await _test_report_is_stable_and_copied()
-	await _test_delivery_builtins_are_contextual()
-	await _test_argument_errors()
-	await _test_wrong_answer_has_no_reward()
-	await _test_structural_validation()
-	await _test_runtime_recursion_required()
-	await _test_valid_recursive_solution()
-	await _test_python_valid_recursive_solution()
-	await _test_python_non_recursive_solution()
-	await _test_python_declared_recursion_must_execute()
-	await _test_python_facts_are_runtime_local()
-	await _test_valid_while_solution()
-	await _test_duplicate_and_cooldown_authority()
-	await _test_diamond_cap()
-	await _test_recursion_depth_limit()
-	await _test_parallel_runtime_isolation()
-	_test_save_roundtrip_and_old_defaults()
-	_test_final_upgrade()
-
+	DeliverySystem.set_process(false)
+	EventBus.update_money.connect(func(amount): paid += amount)
+	_test_generator()
+	_test_validator()
+	_test_unlock_and_snapshots()
+	_test_arrival_and_save()
+	await _test_malformed_runtime_routes()
+	await _test_interpreter()
+	await _test_ui()
 	InterpreterSystem.runtime_manager.stop_all()
-	if _failures.is_empty():
-		print("DELIVERY_SYSTEM_TEST_OK")
+	await get_tree().process_frame
+	if failures.is_empty():
+		print("DELIVERY_SYSTEM_TEST_OK: 500 seeds + sizes 2/3/7, routes, persistence, 8 real Python BFS jobs, budget <= %d" % max_operations)
 	else:
-		push_error("\n".join(_failures))
+		for message in failures:
+			push_error(message)
+	get_tree().quit(0 if failures.is_empty() else 1)
 
-	await get_tree().process_frame
-	get_tree().quit()
+func check(ok: bool, message: String) -> void:
+	if not ok:
+		failures.append(message)
 
+# Independent flood/edge accounting on the matrix, not DFS generator metadata.
+func explore(matrix: Array, origin: Array, forbidden: Array = []) -> Dictionary:
+	var parents := {Vector2i(origin[0], origin[1]): Vector2i(-1, -1)}
+	var queue := [Vector2i(origin[0], origin[1])]
+	var cursor := 0
+	while cursor < queue.size():
+		var cell: Vector2i = queue[cursor]
+		cursor += 1
+		for delta in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+			var next: Vector2i = cell + delta
+			if forbidden == [cell, next] or forbidden == [next, cell]:
+				continue
+			if next.x >= 0 and next.y >= 0 and next.x < matrix.size() and next.y < matrix.size() and matrix[next.x][next.y] == 1 and not parents.has(next):
+				parents[next] = cell
+				queue.append(next)
+	return parents
 
-func _reset_all() -> void:
-	InterpreterSystem.runtime_manager.reset()
+func solve(map: Dictionary) -> Array:
+	var parents := explore(map.matrix, map.origin)
+	var cell := Vector2i(map.destination[0], map.destination[1])
+	var route := []
+	while cell != Vector2i(-1, -1):
+		route.push_front([cell.x, cell.y])
+		cell = parents[cell]
+	return route
+
+func _test_generator() -> void:
+	var history := []
+	var previous := []
+	for seed_value in range(500):
+		var map := Generator.generate(seed_value, 5, 4, 6, 0, 32, history, previous)
+		verify_map(map, 5)
+		check(bool(map.constraints_met), "Default constraints seed %d" % seed_value)
+		check(not history.has(map.fingerprint), "Repeated configuration seed %d" % seed_value)
+		check(map.destination != previous, "Repeated destination seed %d" % seed_value)
+		var route := solve(map)
+		check(route.size() >= 7, "Minimum route seed %d" % seed_value)
+		check(Validator.validate(route, map.matrix, map.origin, map.destination).is_empty(), "Valid generated route")
+		# Removing any edge of the route must disconnect the target: independent uniqueness check.
+		for index in range(route.size() - 1):
+			var a := Vector2i(route[index][0], route[index][1])
+			var b := Vector2i(route[index + 1][0], route[index + 1][1])
+			check(not explore(map.matrix, map.origin, [a, b]).has(Vector2i(map.destination[0], map.destination[1])), "Alternative route exists")
+		history.append(map.fingerprint)
+		previous = map.destination
+	for size_value in [2, 3, 7]:
+		for seed_value in range(10):
+			verify_map(Generator.generate(seed_value, size_value), size_value)
+	var constrained := Generator.generate(12, 5, 0, 0, 999, 1)
+	check(not constrained.constraints_met, "Impossible constraints reported")
+	verify_map(constrained, 5)
+
+func verify_map(map: Dictionary, intersections: int) -> void:
+	var matrix: Array = map.matrix
+	check(matrix.size() == intersections * 2 - 1, "Configurable dimensions")
+	var edges := 0
+	var walkable := 0
+	for row in range(matrix.size()):
+		check(matrix[row].size() == matrix.size(), "Square matrix")
+		for col in range(matrix.size()):
+			if matrix[row][col] == 1:
+				walkable += 1
+			if row % 2 == 0 and col % 2 == 0:
+				check(matrix[row][col] == 1, "Intersection removed")
+			elif row % 2 == 1 and col % 2 == 1:
+				check(matrix[row][col] == 0, "Block must stay terrain")
+			else:
+				check(matrix[row][col] in [1, 2], "Street segment encoding")
+				if matrix[row][col] == 1:
+					edges += 1
+	check(edges == intersections * intersections - 1, "Tree edge count")
+	check(explore(matrix, [0, 0]).size() == walkable, "Disconnected streets")
+
+func _test_validator() -> void:
+	var matrix := [[1, 1, 1], [2, 0, 1], [1, 1, 1]]
+	var origin := [0, 0]
+	var destination := [2, 2]
+	var valid := [[0, 0], [0, 1], [0, 2], [1, 2], [2, 2]]
+	check(Validator.validate(valid, matrix, origin, destination) == "", "Correct route")
+	for route in [null, 1, {}, [], [[0, 0]], [[0, 1], [0, 2], [1, 2], [2, 2]],
+		[[0, 0], [0, 1], [1, 2], [2, 2]], [[0, 0], [1, 0], [2, 0], [2, 1], [2, 2]],
+		[[0, 0], [0, 1], [1, 1], [1, 2], [2, 2]], [[0, 0], [0, 2], [1, 2], [2, 2]],
+		[[0, 0], [0, 1], [0, 0], [0, 1], [0, 2], [1, 2], [2, 2]],
+		[[0, 0], [9, 0]], [[0, 0], [-1, 0]], [[0, 0], [0.0, 1]], [[0, 0], [true, 1]],
+		[[0, 0], [0]], [[0, 0], "x"], [[0, 0], ["0", 1]]]:
+		check(not Validator.validate(route, matrix, origin, destination).is_empty(), "Malformed route accepted: %s" % str(route))
+
+func _test_unlock_and_snapshots() -> void:
 	FeatureManager.reset_progression()
-	FeatureManager.unlock_feature(FeatureManager.FEATURE_IF)
-	FeatureManager.unlock_feature(FeatureManager.FEATURE_STOCK)
-	GameManager.money = 0
-	GameManager.diamonds = 0
-	GameManager.game_completed = false
-	GameManager.upgrades.clear()
-	UpgradeManager.upgrades_comprados.clear()
-	UpgradeManager.upgrades_liberados.clear()
 	DeliverySystem.load_save_data({})
-	DeliverySystem.unlock(false)
-	_delivery_script_id = InterpreterSystem.ensure_delivery_script()
-	_money_events = 0
-	_notifications.clear()
-
-
-func _reset_report(deliveries: Array) -> void:
-	InterpreterSystem.runtime_manager.stop_script(_delivery_script_id)
-	DeliverySystem.load_save_data({})
-	DeliverySystem.unlock(false)
-	_check(DeliverySystem.debug_set_report(deliveries), "O relatório de teste deve ser aceito: %s" % str(deliveries))
-	GameManager.money = 0
-	GameManager.diamonds = 0
-	_money_events = 0
-
-
-func _test_calculation_table() -> void:
-	var expected := {
-		2: [0, 2, 6, 14, 30, 62],
-		4: [0, 4, 12, 28, 60, 124],
-		7: [0, 7, 21, 49, 105, 217]
-	}
-	for base_value in Config.BASE_VALUES:
-		for quantity in range(Config.MIN_DELIVERIES, Config.MAX_DELIVERIES + 1):
-			_check(
-				DeliverySystem.calculate_profit(quantity, base_value) == expected[base_value][quantity],
-				"Lucro incorreto para base %d e quantidade %d." % [base_value, quantity]
-			)
-
-
-func _test_delivery_upgrade_unlock() -> void:
-	FeatureManager.reset_progression()
-	DeliverySystem.load_save_data({})
-	GameManager.money = Config.DELIVERY_UNLOCK_COST
-	GameManager.upgrades = ["premium_3", "marketing_3"]
-	UpgradeManager.upgrades_comprados = {"premium_3": true, "marketing_3": true}
-	UpgradeManager.upgrades_liberados.clear()
-	_notifications.clear()
-	UpgradeManager.verificar_desbloqueios()
-	_check(UpgradeManager.upgrades_liberados.has("delivery_online"), "Delivery Online deve aparecer apenas no fim da árvore de upgrades.")
-	_check(UpgradeManager.can_buy("delivery_online"), "Delivery Online deve poder ser comprado com o custo configurado.")
+	check(DeliverySystem.current_delivery() == null, "Locked delivery")
+	check(not DeliverySystem.submit_route([], 1).success, "Locked submission")
+	UpgradeManager.load_save_data({"comprados": {}})
+	GameManager.money = 2000
+	check(not UpgradeManager.can_buy("delivery_online"), "Delivery must follow promotions")
+	UpgradeManager.comprar_upgrade("gameplay_change")
+	UpgradeManager.comprar_upgrade("gameplay_promotions")
+	check(UpgradeManager.can_buy("delivery_online"), "Delivery unlocked after promotions")
 	UpgradeManager.comprar_upgrade("delivery_online")
-	_check(GameManager.money == 0, "Upgrade Delivery Online deve descontar o custo configurado do dinheiro existente.")
-	_check(FeatureManager.has_feature(FeatureManager.FEATURE_DELIVERY), "Compra do upgrade deve desbloquear a feature Delivery.")
-	_check(DeliverySystem.state == DeliverySystem.State.WAITING_DECLARATION, "Compra deve gerar o primeiro relatório.")
-	_check(not InterpreterSystem.get_delivery_script_id().is_empty(), "Compra deve criar a aba reservada Delivery.")
-	_check(_notifications.any(func(message): return message.contains("Delivery Online desbloqueado")), "Compra deve notificar o desbloqueio.")
-	var money_after_purchase := GameManager.money
-	UpgradeManager.comprar_upgrade("delivery_online")
-	_check(GameManager.money == money_after_purchase, "Upgrade Delivery Online não pode ser comprado duas vezes.")
+	check(DeliverySystem.is_unlocked(), "Purchase enables delivery")
+	var id := DeliverySystem.active_report_id
+	var bridge := Bridge.new()
+	bridge.delivery_current({})
+	bridge.delivery_map({})
+	var copy := DeliverySystem.current_matrix()
+	copy[0][0] = 0
+	check(DeliverySystem.current_matrix()[0][0] == 1, "Matrix copy isolation")
+	var info: Dictionary = DeliverySystem.current_delivery()
+	info.origem[0] = 8
+	check(DeliverySystem.current_delivery().origem == [0, 0], "Delivery copy isolation")
+	var before := DeliverySystem.get_view_data()
+	DeliverySystem._generate_report(false, false)
+	check(DeliverySystem.active_report_id == id, "Pending map cannot regenerate")
+	check(not DeliverySystem.submit_route([], id).success, "Invalid route rejected")
+	check(DeliverySystem.get_view_data().driver == before.driver, "Invalid route cannot move")
+	var route := solve(before.map)
+	check(not DeliverySystem.submit_route(route, id - 1).success, "Stale id rejected")
+	check(DeliverySystem.submit_route(route, id).success, "Correct route accepted")
+	route[0][0] = 100
+	check(DeliverySystem.get_view_data().route[0] == [0, 0], "Route copy isolation")
+	check(not DeliverySystem.submit_route([], id).success, "In-flight route rejected")
+	DeliverySystem.advance_driver(100.0)
+	DeliverySystem._process(16.0)
+	check(bridge.delivery_route(solve(DeliverySystem.get_view_data().map), {}).value == false, "Bridge rejects stale snapshot")
+	bridge.delivery_current({})
+	check(bridge.delivery_route(solve(DeliverySystem.get_view_data().map), {}).value == false, "Both snapshots required for same id")
 
+func _test_arrival_and_save() -> void:
+	var data := DeliverySystem.get_save_data()
+	var normalized := Saves._validar_delivery(data)
+	DeliverySystem.load_save_data(JSON.parse_string(JSON.stringify(normalized)))
+	check(DeliverySystem.current_delivery() != null, "Pending map survives JSON save")
+	var route := solve(DeliverySystem.get_view_data().map)
+	var id := DeliverySystem.active_report_id
+	var before := paid
+	check(DeliverySystem.submit_route(route, id).success, "Saved route accepted")
+	check(paid == before, "No payment on submission")
+	DeliverySystem.advance_driver(0.1)
+	check(paid == before, "No payment during animation")
+	var moving := DeliverySystem.get_save_data()
+	DeliverySystem.load_save_data(JSON.parse_string(JSON.stringify(moving)))
+	check(DeliverySystem.state == DeliverySystem.State.WAITING_DECLARATION, "Interrupted trip retries same map")
+	check(DeliverySystem.submit_route(route, id).success, "Interrupted route accepted")
+	DeliverySystem.advance_driver(100.0)
+	check(paid == before + DeliveryConfig.REWARD, "Reward exactly on arrival")
+	DeliverySystem.advance_driver(100.0)
+	check(paid == before + DeliveryConfig.REWARD, "No duplicate arrival reward")
+	check(not DeliverySystem.submit_route(route, id).success, "No route without pending job")
+	var cooled := DeliverySystem.get_save_data()
+	DeliverySystem.load_save_data(JSON.parse_string(JSON.stringify(cooled)))
+	check(DeliverySystem.state == DeliverySystem.State.COOLDOWN, "Cooldown persisted")
+	DeliverySystem._process(14.0)
+	check(DeliverySystem.current_delivery() == null, "15-second cooldown respected")
+	DeliverySystem._process(1.1)
+	check(DeliverySystem.current_delivery() != null, "Next job after cooldown")
+	var corrupted := DeliverySystem.get_save_data()
+	corrupted.map.matrix[1][1] = 1
+	DeliverySystem.load_save_data(corrupted)
+	check(DeliverySystem.state == DeliverySystem.State.LOCKED, "Malformed saved topology rejected safely")
+	DeliverySystem._process(0)
 
-func _test_report_is_stable_and_copied() -> void:
-	_reset_report([3, 0, 2])
-	var runtime_id := InterpreterSystem.runtime_manager.start_script(_delivery_script_id, """
-int main() {
-	int primeiro[3];
-	int segundo[3];
-	primeiro = get_deliveries();
-	primeiro[0] = 99;
-	segundo = get_deliveries();
-	print(segundo);
-	await(1);
-}
-""", "Delivery", null, "c_like")
-	await _wait_frames(3)
-	var runtime := InterpreterSystem.runtime_manager.get_runtime(runtime_id)
-	_check(str(runtime.get("status", "")) == ScriptRuntimeManager.STATUS_SLEEPING, "await() deve suspender apenas o script do Delivery.")
-	_check(str(runtime.get("output", "")).contains("[3, 0, 2]"), "get_deliveries() deve retornar o mesmo relatório e uma cópia segura.")
-	_check(DeliverySystem.active_deliveries == [3, 0, 2], "Alterar o array retornado não pode alterar o relatório real.")
-	InterpreterSystem.runtime_manager.stop_runtime(runtime_id)
+func _test_interpreter() -> void:
+	var initial := DeliverySystem.completed_deliveries
+	var script_id := InterpreterSystem.ensure_delivery_script()
+	var source := FileAccess.get_file_as_string("res://docs/examples/delivery_bfs.py")
+	var manager := InterpreterSystem.runtime_manager
+	var runtime_id := manager.start_script(script_id, source, "Delivery BFS", null, "python_like")
+	var runtime := manager.get_runtime(runtime_id)
+	var guard := 0
+	while DeliverySystem.completed_deliveries < initial + 8 and guard < 6000:
+		guard += 1
+		await get_tree().process_frame
+		max_operations = maxi(max_operations, int(runtime.operations_last_frame))
+		check(int(runtime.operations_last_frame) <= manager.operations_per_frame_per_script, "Incremental budget exceeded")
+		if runtime.status == ScriptRuntimeManager.STATUS_ERROR:
+			check(false, "Python BFS: " + str(runtime.output))
+			break
+		if DeliverySystem.state == DeliverySystem.State.MOVING:
+			DeliverySystem.advance_driver(100.0)
+		elif DeliverySystem.state == DeliverySystem.State.COOLDOWN:
+			DeliverySystem._process(16.0)
+		if runtime.status == ScriptRuntimeManager.STATUS_SLEEPING:
+			# Advance the scheduler clock in the test instead of sleeping wall time.
+			runtime.wake_time_msec = 0
+	check(DeliverySystem.completed_deliveries == initial + 8, "Continuous BFS completes 8 distinct jobs")
+	check(bool(ChallengeSystem.integrated_progress.delivery_completed), "Three jobs complete challenge")
+	check(int(runtime.operations_total) > 200, "Search spans scheduler frames")
+	print("DELIVERY_BFS_OPERATIONS ", runtime.operations_total, " frames ", guard)
+	manager.stop_all()
+	DeliverySystem._process(16.0)
+	var dfs_source := FileAccess.get_file_as_string("res://docs/examples/delivery_dfs.py")
+	var definition := dfs_source.substr(0, dfs_source.find("while True:"))
+	var once := definition + "entrega = entrega_atual()\nif entrega:\n    enviar_rota(buscar(mapa_entrega(), entrega))\n"
+	runtime_id = manager.start_script(script_id, once, "Delivery DFS", null, "python_like")
+	runtime = manager.get_runtime(runtime_id)
+	guard = 0
+	while manager.is_script_running(script_id) and guard < 1000:
+		guard += 1
+		await get_tree().process_frame
+	check(runtime.status == ScriptRuntimeManager.STATUS_FINISHED and DeliverySystem.state == DeliverySystem.State.MOVING, "Iterative DFS solves a real job")
+	DeliverySystem.advance_driver(100.0)
+	manager.stop_all()
+
+func _test_ui() -> void:
+	var panel := PanelScene.instantiate()
+	add_child(panel)
+	panel.open_panel()
 	await get_tree().process_frame
+	check(panel.visible and panel.map_renderer.size.y > 0, "Map visible")
+	for viewport_size in [Vector2i(640, 480), Vector2i(1280, 720), Vector2i(1920, 1080)]:
+		get_window().size = viewport_size
+		await get_tree().process_frame
+		panel._fit_panel()
+		check(panel.frame.size.x <= panel.get_viewport_rect().size.x and panel.frame.size.y <= panel.get_viewport_rect().size.y, "Responsive map window: %s viewport %s" % [panel.frame.size, panel.get_viewport_rect().size])
+	panel.queue_free()
 
 
-func _test_delivery_builtins_are_contextual() -> void:
-	_reset_report([1, 2, 3])
-	var other_id := "not_delivery"
-	var runtime_id := InterpreterSystem.runtime_manager.start_script(other_id, "int main(){ int e[3]; e = get_deliveries(); }", "Outro", null, "c_like")
+func _test_malformed_runtime_routes() -> void:
+	var manager := InterpreterSystem.runtime_manager
+	var script_id := InterpreterSystem.ensure_delivery_script()
+	var id := DeliverySystem.active_report_id
+	var runtime_id := manager.start_script(script_id, """entrega_atual()
+mapa_entrega()
+print(enviar_rota(1))
+print(enviar_rota([[0.0, 0]]))
+ciclo = [None, None]
+ciclo[0] = ciclo
+print(enviar_rota([ciclo]))
+print("entradas verificadas")
+""", "Entradas Delivery", null, "python_like")
 	var guard := 0
-	while InterpreterSystem.runtime_manager.is_script_running(other_id) and guard < 60:
+	while manager.is_script_running(script_id) and guard < 100:
 		guard += 1
 		await get_tree().process_frame
-	var runtime := InterpreterSystem.runtime_manager.get_runtime(runtime_id)
-	_check(str(runtime.get("status", "")) == ScriptRuntimeManager.STATUS_ERROR, "Built-ins do Delivery devem rejeitar outra aba.")
-	_check(_runtime_text(runtime).contains("aba Delivery"), "Uso fora da aba Delivery deve orientar o jogador.")
-	_check(GameManager.money == 0 and GameManager.diamonds == 0, "Outra aba não pode receber recompensas do Delivery.")
-
-
-func _test_argument_errors() -> void:
-	var cases := [
-		["int main(){ get_deliveries(1); }", "sem nada dentro dos parênteses"],
-		["int main(){ declare_profit(); }", "precisa receber o array"],
-		["int main(){ declare_profit(1); }", "espera um array"],
-		["int main(){ declare_profit([1, 2, 3], [1, 2, 3]); }", "somente um argumento"],
-		["int main(){ int e[3]; int p[2]; e = get_deliveries(); declare_profit(p); }", "3 posições"],
-		["int main(){ int e[3]; e = get_deliveries(); declare_profit([1, 2.5, 3]); }", "precisa ser inteiro"]
-	]
-	for entry in cases:
-		_reset_report([1, 2, 3])
-		var runtime := await _run_delivery(str(entry[0]))
-		_check(str(runtime.get("status", "")) == ScriptRuntimeManager.STATUS_ERROR, "Uso inválido deve encerrar somente a execução atual.")
-		_check(_runtime_text(runtime).contains(str(entry[1])), "Erro de argumento não explicou o problema: %s" % str(entry[1]))
-		_check(GameManager.money == 0 and GameManager.diamonds == 0, "Argumento inválido não pode conceder recompensa.")
-
-
-func _test_wrong_answer_has_no_reward() -> void:
-	_reset_report([2, 1, 0])
-	var runtime := await _run_delivery(_valid_solution("lucros[1] = lucros[1] + 1;"))
-	_check(_runtime_text(runtime).contains("expressas"), "Resposta parcial errada deve indicar a categoria sem revelar a solução.")
-	_check(DeliverySystem.state == DeliverySystem.State.WAITING_DECLARATION, "Resposta errada deve manter o relatório aberto.")
-	_check(GameManager.money == 0 and GameManager.diamonds == 0 and _money_events == 0, "Resposta errada não pode conceder dinheiro ou diamante.")
-
-
-func _test_structural_validation() -> void:
-	_reset_report([2, 1, 1])
-	var no_recursion := await _run_delivery("""
-int main() {
-	int e[3]; int p[3]; int bases[3];
-	bases[0] = 2; bases[1] = 4; bases[2] = 7;
-	e = get_deliveries();
-	for (int i = 0; i < 3; i++) { p[i] = 0; for (int j = 0; j < e[i]; j++) { p[i] = 2 * p[i] + bases[i]; } }
-	declare_profit(p);
-}
-""")
-	_check(_runtime_text(no_recursion).contains("função criada por você"), "Cálculo correto sem função criada pelo jogador deve ser rejeitado.")
-
-	var non_recursive_function := await _run_delivery("""
-int auxiliar(int valor) { return valor; }
-int main() {
-	int e[3]; int p[3]; int bases[3];
-	bases[0] = 2; bases[1] = 4; bases[2] = 7; e = get_deliveries();
-	for (int i = 0; i < 3; i++) { p[i] = 0; for (int j = 0; j < e[i]; j++) { p[i] = 2 * p[i] + auxiliar(bases[i]); } }
-	declare_profit(p);
-}
-""")
-	_check(_runtime_text(non_recursive_function).contains("chamar a si mesma"), "Função auxiliar não recursiva deve ser rejeitada.")
-
-	_reset_report([2, 1, 1])
-	var no_loop := await _run_delivery("""
-int lucro(int n, int b) { if (n == 0) { return 0; } return 2 * lucro(n - 1, b) + b; }
-int main() {
-	int e[3]; int p[3]; e = get_deliveries();
-	p[0] = lucro(e[0], 2); p[1] = lucro(e[1], 4); p[2] = lucro(e[2], 7);
-	declare_profit(p);
-}
-""")
-	_check(_runtime_text(no_loop).contains("Use for ou while"), "Solução sem loop deve ser rejeitada.")
-
-	_reset_report([2, 1, 1])
-	var no_base_case := await _run_delivery("""
-int armadilha(int n) { if (n > 0) { return armadilha(n - 1); } return armadilha(n + 1); }
-int main() {
-	int e[3]; int p[3]; int bases[3]; bases[0] = 2; bases[1] = 4; bases[2] = 7; e = get_deliveries();
-	for (int i = 0; i < 3; i++) { p[i] = 0; for (int j = 0; j < e[i]; j++) { p[i] = 2 * p[i] + bases[i]; } }
-	declare_profit(p);
-}
-""")
-	_check(_runtime_text(no_base_case).contains("caso-base"), "Função recursiva sem ramo de parada deve ser rejeitada pela AST.")
-
-
-func _test_runtime_recursion_required() -> void:
-	_reset_report([2, 1, 1])
-	var runtime := await _run_delivery("""
-int recursiva(int n) { if (n == 0) { return 0; } return recursiva(n - 1); }
-int main() {
-	int e[3]; int p[3]; int bases[3];
-	bases[0] = 2; bases[1] = 4; bases[2] = 7; e = get_deliveries();
-	for (int i = 0; i < 3; i++) { p[i] = 0; for (int j = 0; j < e[i]; j++) { p[i] = 2 * p[i] + bases[i]; } }
-	declare_profit(p);
-}
-""")
-	_check(_runtime_text(runtime).contains("não foi usada"), "Declarar recursão sem executá-la no relatório deve ser rejeitado.")
-	_check(GameManager.money == 0 and GameManager.diamonds == 0, "Recursão não executada não pode render recompensa.")
-
-
-func _test_valid_recursive_solution() -> void:
-	_reset_report([3, 2, 1])
-	var runtime := await _run_delivery(_valid_solution())
-	_check(_runtime_text(runtime).contains("Declaração aprovada"), "Solução recursiva válida deve ser aprovada.")
-	_check(GameManager.money == 33, "Relatório [3, 2, 1] deve creditar 33 moedas.")
-	_check(GameManager.diamonds == 1, "Declaração correta deve conceder exatamente um diamante.")
-	_check(_money_events == 1, "O lucro deve ser creditado por um único evento monetário.")
-	_check(DeliverySystem.state == DeliverySystem.State.COOLDOWN, "A aprovação deve iniciar o cooldown do jogo.")
-	_check(DeliverySystem.last_rewarded_report_id > 0, "A aprovação deve registrar o id anti-duplicação.")
-
-
-func _test_python_valid_recursive_solution() -> void:
-	_reset_report([3, 2, 1])
-	var runtime := await _run_python_delivery(_valid_python_solution())
-	_check(str(runtime.get("status", "")) == ScriptRuntimeManager.STATUS_FINISHED,
-		"Solução Python-like válida deve terminar normalmente.")
-	_check(_runtime_text(runtime).contains("Declaração aprovada"),
-		"Solução Python-like recursiva válida deve ser aprovada.")
-	_check(GameManager.money == 33 and GameManager.diamonds == 1,
-		"Solução Python-like deve receber as mesmas recompensas da C-like.")
-	_check(_money_events == 1 and DeliverySystem.state == DeliverySystem.State.COOLDOWN,
-		"Aprovação Python-like deve aplicar uma única recompensa e iniciar cooldown.")
-
-
-func _test_python_non_recursive_solution() -> void:
-	_reset_report([2, 1, 1])
-	var runtime := await _run_python_delivery(_non_recursive_python_solution())
-	_check(str(runtime.get("status", "")) == ScriptRuntimeManager.STATUS_FINISHED,
-		"Rejeição pedagógica Python-like não deve ser erro do runtime.")
-	_check(_runtime_text(runtime).contains("chamar a si mesma"),
-		"Cálculo Python-like correto sem recursão deve ser rejeitado como no C-like.")
-	_check(GameManager.money == 0 and GameManager.diamonds == 0,
-		"Solução Python-like sem recursão não pode receber recompensa.")
-
-
-func _test_python_declared_recursion_must_execute() -> void:
-	_reset_report([2, 1, 1])
-	var runtime := await _run_python_delivery("""
-def recursiva(n):
-    if n == 0:
-        return 0
-    return recursiva(n - 1)
-
-def calcular(quantidade, valor_base):
-    lucro = 0
-    for passo in range(quantidade):
-        lucro = 2 * lucro + valor_base
-    return lucro
-
-entregas = get_deliveries()
-bases = [2, 4, 7]
-lucros = [0, 0, 0]
-for i in range(3):
-    lucros[i] = calcular(entregas[i], bases[i])
-declare_profit(lucros)
-""")
-	_check(_runtime_text(runtime).contains("não foi usada"),
-		"Declarar recursão Python-like sem executá-la após o relatório deve ser rejeitado.")
-	_check(GameManager.money == 0 and GameManager.diamonds == 0,
-		"Recursão Python-like não executada não pode conceder recompensa.")
-
-
-func _test_python_facts_are_runtime_local() -> void:
-	_reset_report([2, 1, 1])
-	var other_id := "python_delivery_facts_other"
-	InterpreterSystem.runtime_manager.start_script(other_id, """
-def recursiva(n):
-    if n == 0:
-        return 0
-    return recursiva(n - 1)
-
-while True:
-    wait(1)
-""", "OutroPython", null, "python_like")
-	await _wait_frames(2)
-	_check(InterpreterSystem.runtime_manager.is_script_running(other_id),
-		"Runtime Python-like paralelo deve permanecer suspenso durante o teste.")
-	var runtime := await _run_python_delivery(_non_recursive_python_solution())
-	_check(_runtime_text(runtime).contains("chamar a si mesma"),
-		"Delivery não pode herdar fatos recursivos de outro runtime Python-like.")
-	_check(GameManager.money == 0 and GameManager.diamonds == 0,
-		"Fatos de outro runtime não podem liberar recompensa.")
-	InterpreterSystem.runtime_manager.stop_script(other_id)
-
-	_reset_report([2, 1, 1])
-	var invalid := await _run_python_delivery("def quebrada(:\n    return 1\n")
-	_check(str(invalid.get("status", "")) == ScriptRuntimeManager.STATUS_ERROR,
-		"Source Python-like inválido deve falhar sem produzir fatos válidos.")
-	_check(GameManager.money == 0 and GameManager.diamonds == 0,
-		"Falha de parse após restart não pode reutilizar fatos nem conceder recompensa.")
-
-
-func _test_valid_while_solution() -> void:
-	_reset_report([1, 0, 2])
-	var runtime := await _run_delivery("""
-int lucro(int n, int b) { if (n == 0) { return 0; } return 2 * lucro(n - 1, b) + b; }
-int main() {
-	int e[3]; int p[3]; int bases[3]; int i = 0;
-	bases[0] = 2; bases[1] = 4; bases[2] = 7; e = get_deliveries();
-	while (i < 3) { p[i] = lucro(e[i], bases[i]); i = i + 1; }
-	declare_profit(p);
-}
-""")
-	_check(_runtime_text(runtime).contains("Declaração aprovada"), "while também deve atender ao requisito de loop.")
-	_check(GameManager.money == 23 and GameManager.diamonds == 1, "Solução válida com while deve receber as recompensas corretas.")
-
-
-func _test_duplicate_and_cooldown_authority() -> void:
-	var money_before := GameManager.money
-	var diamonds_before := GameManager.diamonds
-	var duplicate := await _run_delivery(_valid_solution())
-	_check(_runtime_text(duplicate).contains("Aguarde"), "Nova leitura durante cooldown deve informar a espera do jogo.")
-	_check(GameManager.money == money_before and GameManager.diamonds == diamonds_before, "Remover await() não pode duplicar recompensas.")
-	_check(_money_events == 1, "Declaração repetida não pode emitir novo crédito.")
-
-	DeliverySystem.next_report_unix = int(Time.get_unix_time_from_system()) - 1
-	DeliverySystem.call("_process", 0.0)
-	_check(DeliverySystem.state == DeliverySystem.State.WAITING_DECLARATION, "O jogo deve liberar novo relatório ao fim do cooldown.")
-	_check(DeliverySystem.active_report_id > DeliverySystem.last_rewarded_report_id, "O novo relatório deve possuir id posterior ao já premiado.")
-
-
-func _test_diamond_cap() -> void:
-	_reset_report([1, 1, 1])
-	GameManager.diamonds = Config.MAX_DIAMONDS
-	var runtime := await _run_delivery(_valid_solution())
-	_check(_runtime_text(runtime).contains("Declaração aprovada"), "Diamantes no máximo não devem bloquear o lucro.")
-	_check(GameManager.diamonds == Config.MAX_DIAMONDS, "Diamantes não podem ultrapassar o máximo.")
-	_check(GameManager.money == 13, "Lucro ainda deve ser creditado com diamantes no máximo.")
-	_check(int(DeliverySystem.last_result.get("diamond_awarded", -1)) == 0, "Resultado deve informar que nenhum diamante extra foi concedido.")
-
-
-func _test_recursion_depth_limit() -> void:
-	var runtime := await _run_delivery("""
-int sem_fim(int n) { return sem_fim(n + 1); }
-int main() { print(sem_fim(0)); }
-""")
-	_check(str(runtime.get("status", "")) == ScriptRuntimeManager.STATUS_ERROR, "Recursão sem caso-base deve encerrar com erro seguro.")
-	_check(_runtime_text(runtime).contains("limite de chamadas recursivas"), "Profundidade excessiva deve mostrar mensagem clara.")
-
-
-func _test_parallel_runtime_isolation() -> void:
-	_reset_report([1, 2, 1])
-	var other_id := "parallel_other"
-	InterpreterSystem.runtime_manager.start_script(other_id, "int main(){ while (1) { await(1); } }", "Outro", null, "c_like")
-	await _wait_frames(2)
-	_check(InterpreterSystem.runtime_manager.is_script_running(other_id), "Outro script deve rodar em paralelo com o Delivery.")
-	var invalid := await _run_delivery("int main(){ int e[3]; e = get_deliveries(); declare_profit(1); }")
-	_check(str(invalid.get("status", "")) == ScriptRuntimeManager.STATUS_ERROR, "Erro no Delivery deve ficar restrito ao runtime do Delivery.")
-	_check(InterpreterSystem.runtime_manager.is_script_running(other_id), "Erro no Delivery não pode parar outro script em await().")
-	InterpreterSystem.runtime_manager.stop_script(other_id)
-
-
-func _test_save_roundtrip_and_old_defaults() -> void:
-	_reset_report([0, 3, 2])
-	var snapshot := DeliverySystem.get_save_data()
-	DeliverySystem.load_save_data(snapshot)
-	_check(DeliverySystem.state == DeliverySystem.State.WAITING_DECLARATION, "Save deve restaurar relatório ativo.")
-	_check(DeliverySystem.active_deliveries == [0, 3, 2], "Save deve preservar as quantidades do relatório.")
-	var report_id := DeliverySystem.active_report_id
-	DeliverySystem.load_save_data({
-		"state": DeliverySystem.State.COOLDOWN,
-		"last_rewarded_report_id": report_id,
-		"next_report_id": report_id + 1,
-		"next_report_unix": int(Time.get_unix_time_from_system()) + 30
-	})
-	_check(DeliverySystem.active_report_id == 0 and DeliverySystem.last_rewarded_report_id == report_id, "Save aprovado não pode reabrir o relatório premiado.")
-
-	GameManager.load_save_data({"dinheiro": 17, "upgrades": [], "unlocked_mechanics": {}})
-	_check(GameManager.diamonds == 0 and not GameManager.game_completed, "Save antigo deve assumir 0 diamantes e jogo não concluído.")
-	DeliverySystem.load_save_data({})
-	_check(DeliverySystem.state == DeliverySystem.State.LOCKED, "Save antigo deve assumir Delivery bloqueado.")
-
-
-func _test_final_upgrade() -> void:
-	FeatureManager.unlock_feature(FeatureManager.FEATURE_DELIVERY)
-	GameManager.game_completed = false
-	GameManager.diamonds = Config.FINAL_UPGRADE_COST - 1
-	GameManager.upgrades = ["delivery_online"]
-	UpgradeManager.upgrades_comprados = {"delivery_online": true}
-	UpgradeManager.upgrades_liberados = ["zerar"]
-	_check(not UpgradeManager.can_buy("zerar"), "Zerar deve ficar indisponível com menos de 5 diamantes.")
-	GameManager.diamonds = Config.FINAL_UPGRADE_COST
-	_check(UpgradeManager.can_buy("zerar"), "Zerar deve liberar com 5 diamantes.")
-	UpgradeManager.comprar_upgrade("zerar")
-	_check(GameManager.diamonds == 0, "Zerar deve gastar os cinco diamantes.")
-	_check(GameManager.game_completed, "Zerar deve marcar o jogo como concluído.")
-	_check(DeliverySystem.state == DeliverySystem.State.COMPLETED, "Zerar deve encerrar novos relatórios.")
-	_check(UpgradeManager.has_upgrade("zerar") and not UpgradeManager.can_buy("zerar"), "Zerar não pode ser comprado novamente.")
-
-
-func _valid_solution(extra_line := "") -> String:
-	return """
-int resolver(int quantidade, int valor_base) {
-	if (quantidade == 0) { return 0; }
-	return 2 * resolver(quantidade - 1, valor_base) + valor_base;
-}
-int main() {
-	int entregas[3]; int bases[3]; int lucros[3];
-	bases[0] = 2; bases[1] = 4; bases[2] = 7;
-	entregas = get_deliveries();
-	for (int i = 0; i < 3; i++) { lucros[i] = resolver(entregas[i], bases[i]); }
-	%s
-	declare_profit(lucros);
-}
-""" % extra_line
-
-
-func _valid_python_solution() -> String:
-	return """
-def resolver(quantidade, valor_base):
-    if quantidade == 0:
-        return 0
-    return 2 * resolver(quantidade - 1, valor_base) + valor_base
-
-entregas = get_deliveries()
-bases = [2, 4, 7]
-lucros = [0, 0, 0]
-for i in range(3):
-    lucros[i] = resolver(entregas[i], bases[i])
-declare_profit(lucros)
-"""
-
-
-func _non_recursive_python_solution() -> String:
-	return """
-def calcular(quantidade, valor_base):
-    lucro = 0
-    for passo in range(quantidade):
-        lucro = 2 * lucro + valor_base
-    return lucro
-
-entregas = get_deliveries()
-bases = [2, 4, 7]
-lucros = [0, 0, 0]
-for i in range(3):
-    lucros[i] = calcular(entregas[i], bases[i])
-declare_profit(lucros)
-"""
-
-
-func _run_delivery(code: String) -> Dictionary:
-	var runtime_id := InterpreterSystem.runtime_manager.start_script(_delivery_script_id, code, "Delivery", null, "c_like")
-	var guard := 0
-	while InterpreterSystem.runtime_manager.is_script_running(_delivery_script_id) and guard < 180:
-		guard += 1
-		await get_tree().process_frame
-	if InterpreterSystem.runtime_manager.is_script_running(_delivery_script_id):
-		_check(false, "Execução do Delivery excedeu o limite de frames.")
-		InterpreterSystem.runtime_manager.stop_script(_delivery_script_id)
-	return InterpreterSystem.runtime_manager.get_runtime(runtime_id)
-
-
-func _run_python_delivery(code: String) -> Dictionary:
-	var runtime_id := InterpreterSystem.runtime_manager.start_script(
-		_delivery_script_id, code, "Delivery", null, "python_like"
-	)
-	var guard := 0
-	while InterpreterSystem.runtime_manager.is_script_running(_delivery_script_id) and guard < 180:
-		guard += 1
-		await get_tree().process_frame
-	if InterpreterSystem.runtime_manager.is_script_running(_delivery_script_id):
-		_check(false, "Execução Python-like do Delivery excedeu o limite de frames.")
-		InterpreterSystem.runtime_manager.stop_script(_delivery_script_id)
-	return InterpreterSystem.runtime_manager.get_runtime(runtime_id)
-
-
-func _runtime_text(runtime: Dictionary) -> String:
-	return str(runtime.get("output", "")) + "\n" + str(runtime.get("error", ""))
-
-
-func _wait_frames(count: int) -> void:
-	for _index in range(count):
-		await get_tree().process_frame
-
-
-func _on_update_money(amount: int) -> void:
-	_money_events += 1
-	GameManager.money += amount
-
-
-func _on_notification(message: String) -> void:
-	_notifications.append(message)
-
-
-func _check(condition: bool, message: String) -> void:
-	if not condition:
-		_failures.append(message)
+	var runtime := manager.get_runtime(runtime_id)
+	check(runtime.status == ScriptRuntimeManager.STATUS_FINISHED and str(runtime.output).contains("entradas verificadas"), "Malformed/cyclic routes do not crash runtime")
+	check(DeliverySystem.active_report_id == id and DeliverySystem.state == DeliverySystem.State.WAITING_DECLARATION, "Malformed routes preserve pending map")

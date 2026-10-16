@@ -54,7 +54,18 @@ A saída tem uma linha para cada valor: 2, 3 e 4.
 Listas usam posições. O carrinho do mercado usa códigos de produtos como chaves, portanto é um dicionário. promocoes() retorna uma lista de dicionários.
 
 [b]No jogo[/b]
-Use + para juntar listas e len() para medir seu tamanho. Métodos como .append() não estão disponíveis nesta linguagem.""",
+Use + para criar uma lista concatenada e len() para medir o tamanho.
+
+[b]Adicionar e remover[/b]
+append(valor) acrescenta um elemento ao final da própria lista e retorna None. pop() remove e devolve o último elemento. pop(indice) remove e devolve a posição escolhida; índices negativos contam do fim.
+[code]numeros = [10, 20]
+resultado = numeros.append(30)
+print(numeros)  # [10, 20, 30]
+print(resultado)  # None
+print(numeros.pop())  # 30
+print(numeros.pop(0))  # 10
+print(numeros)  # [20][/code]
+Uma lista vazia ou um índice fora dos limites causa erro. Apelidos da mesma lista veem as alterações. Não altere uma lista enquanto um for a percorre; use uma fila com índice ou um while com pop().""",
 		"hint": """O último índice positivo é len(lista) - 1."""
 	},
 	{
@@ -610,35 +621,104 @@ Use [code]while[/code] para “até acontecer algo” e [code]for[/code] para �
 	},
 	{
 		"id": "delivery_overview",
-		"title": "Delivery Online completo",
-		"category": "Delivery",
+		"title": "Automatizar entregas",
+		"category": "Desafios do mercado",
 		"requirement": "delivery",
-		"text": """[b]O objetivo[/b]
-Cada relatório traz três quantidades nesta ordem: entregas normais, expressas e VIP. Ele permanece aberto até seu script declarar os três lucros corretos.
+		"text": """[b]Objetivo[/b]
+Concluir três entregas programando o caminho do motoqueiro. A automação pode continuar após a meta.
 
-[b]Ler e declarar[/b]
-[code]entregas = get_deliveries()[/code] devolve um array: [code][0][/code] normal, [code][1][/code] expressa e [code][2][/code] VIP.
-[code]declare_profit(lucros)[/code] recebe outro array com três resultados na mesma ordem.
+[b]Entrada e saída[/b]
+entrega_atual() informa origem e destino; mapa_entrega() fornece as ruas. Calcule o caminho e envie a lista de coordenadas com enviar_rota(rota).
 
-[b]Regra do lucro[/b]
-Para [code]n[/code] entregas e valor-base [code]b[/code]:
-[code]L(0) = 0[/code]
-[code]L(n) = 2 * L(n - 1) + b[/code]
-Normal usa [code]b = 2[/code], expressa usa [code]b = 4[/code] e VIP usa [code]b = 7[/code].
+[b]Regras[/b]
+Existe um único caminho livre. Inclua origem e destino, sem diagonais ou posições repetidas. Uma rota recusada pode ser corrigida.
 
-A fórmula [code]L(n) = b * (2^n - 1)[/code] serve apenas para conferir o resultado; a solução aprovada precisa usar a relação recursiva.
+[b]Como conferir[/b]
+A chegada rende R$40; outra entrega surge após 15 segundos. Use wait(1) entre verificações. O mercado continua funcionando durante a viagem.""",
+		"hint": "Separe a busca pelo caminho da repetição que aguarda novas entregas."
+	},
+	{
+		"id": "delivery_matrix",
+		"title": "Matrizes e coordenadas",
+		"category": "Aprender a programar",
+		"requirement": "delivery",
+		"text": """[b]Uma lista de listas[/b]
+Uma matriz é uma lista de listas. Acesse [linha][coluna], com índices começando em zero.
+[code]matriz = [[1, 2], [3, 4]]
+print(matriz[1][0])  # 3[/code]
 
-[b]Recursão segura[/b]
-Crie uma função que chama a si mesma com [code]n - 1[/code]. Use [code]if[/code] para o caso-base [code]n == 0[/code]. Cada chamada precisa se aproximar desse caso; caso contrário, o limite de segurança interrompe o programa.
+[b]Mover em uma grade[/b]
+Subir/descer altera a linha; ir para os lados altera a coluna. Confira os limites antes de acessar.
 
-[b]Processar as categorias[/b]
-Use [code]for[/code] ou [code]while[/code] para calcular as três posições. A função recursiva precisa participar de verdade desse cálculo — não basta deixá-la escrita sem uso.
+[b]No delivery[/b]
+Na matriz 9×9 do bairro, 0 é terreno, 1 é rua livre e 2 é bloqueio. Só 1 permite passagem.""",
+		"hint": "[0, 1] significa primeira linha, segunda coluna."
+	},
+	{
+		"id": "delivery_search",
+		"title": "Busca de caminhos — DFS e BFS",
+		"category": "Aprender a programar",
+		"requirement": "delivery",
+		"text": """[b]Explorar vizinhos[/b]
+Examine os quatro vizinhos de cada posição e marque os visitados para evitar repetições.
 
-[b]Continuar operando[/b]
-Depois de uma declaração aprovada, use [code]wait(segundos)[/code] antes da próxima leitura. Diminuir a espera não cria relatórios ou recompensas mais rápido.
+[b]Duas estratégias[/b]
+DFS aprofunda uma direção, usando uma pilha; BFS explora em camadas, usando uma fila. Ambas resolvem o delivery, sem exigir recursão.
 
-[b]Recompensas[/b]
-O lucro aprovado entra no caixa e você recebe 1 diamante enquanto não tiver atingido o limite de 5. Junte 5 diamantes para comprar o upgrade final [b]Zerar[/b]. Uma resposta rejeitada não fecha o relatório: revise e tente novamente.""",
-		"hint": "Teste primeiro L(0), depois L(1). Quando a função estiver correta, percorra as três bases [2, 4, 7] e monte o array final."
+[b]Reconstruir a rota[/b]
+Guarde de onde veio cada posição para reconstruir o caminho até o destino. Não envie todo o histórico da busca.""",
+		"hint": "Os becos fazem parte da busca, mas não precisam aparecer na rota enviada."
+	},
+	{
+		"id": "delivery_api",
+		"title": "Consultar entrega — entrega_atual()",
+		"category": "Comandos do jogo",
+		"requirement": "delivery",
+		"text": """[b]Para que serve[/b]
+Retorna um dicionário com id, origem e destino. Sem entrega pendente, retorna None.
+
+[b]Como chamar e formato[/b]
+[code]entrega = entrega_atual()
+if entrega:
+    print(entrega["origem"], entrega["destino"])[/code]
+Origem e destino são listas [linha, coluna].
+
+[b]Cuidados[/b]
+Durante a viagem e o intervalo, retorna None. Use wait() entre consultas.""",
+		"hint": "Guarde a entrega antes de consultar o mapa e calcular a rota."
+	},
+	{
+		"id": "delivery_map_api",
+		"title": "Consultar bairro — mapa_entrega()",
+		"category": "Comandos do jogo",
+		"requirement": "delivery",
+		"text": """[b]Para que serve[/b]
+Retorna uma cópia da matriz: 0 = terreno, 1 = rua livre, 2 = bloqueio. Sem entrega pendente, retorna [].
+
+[b]Como chamar[/b]
+[code]mapa = mapa_entrega()
+if mapa:
+    print(mapa[0][0])[/code]
+
+[b]Cuidados[/b]
+Leia também entrega_atual() para o mesmo pedido. Alterar a cópia não muda as ruas reais.""",
+		"hint": "Na busca, avance somente para posições dentro dos limites e com valor 1."
+	},
+	{
+		"id": "delivery_route_api",
+		"title": "Enviar caminho — enviar_rota()",
+		"category": "Comandos do jogo",
+		"requirement": "delivery",
+		"text": """[b]Para que serve[/b]
+Valida a rota e inicia a viagem. Retorna True se aceita ou False com a explicação da recusa.
+
+[b]Como chamar[/b]
+[code]rota = [[0, 0], [0, 1], [0, 2]]
+print(enviar_rota(rota))[/code]
+O exemplo mostra o formato, não uma solução para qualquer mapa.
+
+[b]Cuidados[/b]
+Use pares de inteiros, incluindo origem e destino, com passos de uma célula. Bloqueios e repetições são recusados sem mover o motoqueiro. Durante a viagem, aguarde.""",
+		"hint": "Confira a primeira e a última coordenada antes de enviar."
 	}
 ]

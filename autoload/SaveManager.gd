@@ -708,6 +708,9 @@ func _validar_tutorial(data: Dictionary) -> Dictionary:
 	return resultado
 
 func _validar_delivery(data: Dictionary) -> Dictionary:
+	if int(data.get("schema_version", 0)) == 2:
+		# Structural map validation and interrupted-trip recovery live in DeliverySystem.
+		return data.duplicate(true)
 	var resultado = _save_padrao()["delivery"]
 	resultado["state"] = clampi(int(data.get("state", 0)), 0, 3)
 	resultado["next_report_id"] = maxi(1, int(data.get("next_report_id", 1)))

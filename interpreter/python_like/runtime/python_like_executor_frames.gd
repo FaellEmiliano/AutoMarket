@@ -177,6 +177,10 @@ class MembershipFrame extends Frame:
 	var negate: bool = false
 
 
+class AttributeReadFrame extends Frame:
+	var receiver
+
+
 class IndexReadFrame extends Frame:
 	var collection
 	var index

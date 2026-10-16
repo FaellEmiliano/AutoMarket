@@ -80,3 +80,13 @@ func _record(operation: String, arguments: Array,
 		"A fake não possui resposta para '%s'." % operation,
 		"bridge", {"operation": operation}
 	))
+
+
+func delivery_map(context: Dictionary) -> Bridge.Response:
+	return _record("mapa_entrega", [], context)
+
+func delivery_current(context: Dictionary) -> Bridge.Response:
+	return _record("entrega_atual", [], context)
+
+func delivery_route(route: Variant, context: Dictionary) -> Bridge.Response:
+	return _record("enviar_rota", [route], context)

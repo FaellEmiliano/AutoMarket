@@ -58,73 +58,31 @@ func buy_stock(purchase: Dictionary, _context: Dictionary) -> Response:
 	return BridgeContract.Response.succeeded(result.duplicate(true), output)
 
 
-func get_deliveries(context: Dictionary) -> Response:
-	var response := DeliverySystem.request_deliveries(
-		str(context.get("runtime_id", "")),
-		str(context.get("script_id", ""))
-	)
-	if not bool(response.get("success", false)):
-		return BridgeContract.Response.failed(
-			"AUTOMARKET_DELIVERY_REQUEST_REJECTED",
-			str(response.get("message", "Não foi possível ler o relatório do Delivery.")),
-			"gameplay", {"operation": "get_deliveries"}
-		)
-	_delivery_report_id = int(response.get("report_id", 0))
-	var deliveries: Array = response.get("deliveries", [])
-	return BridgeContract.Response.succeeded(deliveries.duplicate(true))
+func get_deliveries(_context: Dictionary) -> Response:
+	return BridgeContract.Response.failed("AUTOMARKET_DELIVERY_RETIRED", "Use entrega_atual(), mapa_entrega() e enviar_rota(rota).")
 
+func declare_profit(_profits: Array, _context: Dictionary) -> Response:
+	return BridgeContract.Response.failed("AUTOMARKET_DELIVERY_RETIRED", "declare_profit() foi aposentada. Use enviar_rota(rota).")
 
-func declare_profit(profits: Array, _context: Dictionary) -> Response:
-	if profits.size() != 3:
-		return BridgeContract.Response.failed(
-			"AUTOMARKET_DELIVERY_INVALID_PROFITS",
-			"declare_profit() espera uma lista com 3 posições.",
-			"gameplay", {"operation": "declare_profit", "expected_size": 3}
-		)
-	for index in range(profits.size()):
-		var value = profits[index]
-		if not (value is int or value is float) or float(value) != float(int(value)):
-			return BridgeContract.Response.failed(
-				"AUTOMARKET_DELIVERY_INVALID_PROFITS",
-				"O lucro na posição %d precisa ser inteiro." % index,
-				"gameplay", {"operation": "declare_profit", "index": index}
-			)
-	if _delivery_report_id <= 0:
-		return BridgeContract.Response.failed(
-			"AUTOMARKET_DELIVERY_REPORT_REQUIRED",
-			"Leia o relatório com get_deliveries() antes de declarar os lucros.",
-			"gameplay", {"operation": "declare_profit"}
-		)
-	if _program_facts == null or not _runtime_recursion_provider.is_valid():
-		return BridgeContract.Response.failed(
-			"AUTOMARKET_PROGRAM_FACTS_UNAVAILABLE",
-			"Não consegui acessar os fatos do programa desta execução.",
-			"bridge", {"operation": "declare_profit"}
-		)
-	var recursive_functions: Array = _program_facts.valid_recursive_functions
-	var runtime_recursion_ok := bool(_runtime_recursion_provider.call(
-		recursive_functions
-	))
-	var response := DeliverySystem.submit_declaration(
-		profits.duplicate(true),
-		str(_context.get("runtime_id", "")),
-		str(_context.get("script_id", "")),
-		_delivery_report_id,
-		_program_facts,
-		runtime_recursion_ok
-	)
-	var message := str(response.get("message", "Declaração rejeitada."))
-	if bool(response.get("success", false)):
-		return BridgeContract.Response.succeeded(null, [message])
-	if bool(response.get("fatal", false)):
-		return BridgeContract.Response.failed(
-			str(response.get("code", "AUTOMARKET_DELIVERY_DECLARATION_REJECTED")),
-			message, "gameplay", {"operation": "declare_profit"}
-		)
-	var output: Array[String] = []
-	if bool(response.get("emit_feedback", true)):
-		output.append(message)
-	return BridgeContract.Response.succeeded(null, output)
+# Each runtime holds the id of the snapshot it actually read. Reading a matrix
+# cannot silently rebind an old destination to a newly generated job.
+var _navigation_id := 0
+var _map_id := 0
+
+func delivery_current(_context: Dictionary) -> Response:
+	var delivery: Variant = DeliverySystem.current_delivery()
+	_navigation_id = int(delivery.id) if delivery is Dictionary else 0
+	return BridgeContract.Response.succeeded(delivery)
+
+func delivery_map(_context: Dictionary) -> Response:
+	var delivery: Variant = DeliverySystem.current_delivery()
+	_map_id = int(delivery.id) if delivery is Dictionary else 0
+	return BridgeContract.Response.succeeded(DeliverySystem.current_matrix())
+
+func delivery_route(route: Variant, _context: Dictionary) -> Response:
+	var snapshot_id := _navigation_id if _navigation_id == _map_id else 0
+	var result := DeliverySystem.submit_route(route, snapshot_id)
+	return BridgeContract.Response.succeeded(bool(result.success), [str(result.message)])
 
 
 func wait(seconds: float, _context: Dictionary) -> Response:

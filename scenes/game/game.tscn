@@ -181,7 +181,6 @@ flat = true
 
 [node name="DeliveryPanel" parent="HUD" instance=ExtResource("13_delivery")]
 visible = false
-process_mode = 4
 
 [node name="CompletionOverlay" parent="HUD" instance=ExtResource("14_completion")]
 visible = false

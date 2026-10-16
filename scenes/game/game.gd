@@ -160,7 +160,7 @@ func _atualizar_estado_mecanicas() -> void:
 	shop_menu.process_mode = Node.PROCESS_MODE_INHERIT if ActiveExperienceData.SHOW_UPGRADE_SHOP else Node.PROCESS_MODE_DISABLED
 	delivery_panel_button.visible = ActiveExperienceData.SHOW_DELIVERY
 	delivery_panel.visible = ActiveExperienceData.SHOW_DELIVERY and delivery_panel.visible
-	diamond_row.visible = ActiveExperienceData.SHOW_DELIVERY and (delivery_panel_button.visible or GameManager.diamonds > 0)
+	diamond_row.visible = GameManager.diamonds > 0
 
 func _on_context_updated(challenge: ChallengeData) -> void:
 	_update_promotion_panel(challenge)
@@ -191,7 +191,6 @@ func _open_delivery_panel() -> void:
 	if not FeatureManager.has_feature(FeatureManager.FEATURE_DELIVERY):
 		_queue_notification(FeatureManager.locked_message(FeatureManager.FEATURE_DELIVERY))
 		return
-	script_menu.set_aberto(false)
 	shop_menu.set_aberto(false)
 	delivery_panel.open_panel()
 
@@ -199,7 +198,7 @@ func _update_diamonds(value: int) -> void:
 	diamond_label.text = "%d / %d" % [value, DeliveryConfigData.MAX_DIAMONDS]
 	diamond_row.visible = (
 		ActiveExperienceData.SHOW_DELIVERY
-		and (FeatureManager.has_feature(FeatureManager.FEATURE_DELIVERY) or value > 0)
+		and value > 0
 	)
 
 func _on_game_completed_changed(completed: bool) -> void:

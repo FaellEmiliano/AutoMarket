@@ -127,3 +127,35 @@ _Questions this graph is uniquely positioned to answer:_
   _High betweenness centrality (0.015) - this node is a cross-community bridge._
 - **What connects `AutoMarket Game Systems`, `Single-Context Domain Layout`, `Pull Requests as Triage Surface` to the rest of the system?**
   _52 weakly-connected nodes found - possible documentation gaps or missing edges._
+
+## Scoped update — Delivery Navigation (2026-10-15)
+
+This is a manual, source-verified navigation update, not a full rebuild of the
+September graph. Existing global metrics/communities above were not recomputed.
+Added 9 nodes and 10 EXTRACTED edges to graph.json (community 44).
+Extraction cost: 0 API input tokens, 0 API output tokens; host-agent review only.
+The preexisting graph.html remains the earlier global visualization.
+
+- systems/DeliveryMapGenerator.gd::generate: randomized DFS spanning tree.
+- systems/DeliveryRouteValidator.gd::validate: strict simple matrix routes.
+- systems/DeliverySystem.gd::submit_route/advance_driver/_finish_delivery: frozen
+  pending job, sequential travel, arrival-only reward, cooldown and persistence.
+- interpreter/runtime/godot_automarket_python_bridge.gd::delivery_current,
+  delivery_map, delivery_route: detached snapshots and matching job ids.
+- interpreter/python_like/runtime/python_like_executor.gd::_builtin_delivery_route:
+  bounded two-level conversion; existing cooperative scheduler is unchanged.
+- scenes/delivery/delivery_map_renderer.gd::_draw/_draw_marker: replaceable solids.
+- systems/ChallengeSystem.gd::record_delivery: initial objective of three arrivals.
+- data/DeliveryConfig.gd: geometry, generation limits, speed, cooldown and reward.
+- tests/delivery_system_test.gd: independent matrix connectivity/tree checks,
+  500 seeds, real incremental BFS/DFS, invalid routes and persistence.
+
+See docs/delivery-navigation.md for integration, migration and validation notes.
+
+## Scoped update — List methods (2026-10-16)
+
+Added two source-verified nodes and two EXTRACTED edges for attribute resolution
+and ListValue append/pop storage operations. Lexer, parser and AST already
+represent attributes; AttributeReadFrame now resolves only the permitted list
+methods. Existing call frames enforce arity, incremental stepping and lifecycle.
+No global graph rebuild or metrics recomputation.

@@ -54,14 +54,15 @@ func _run_tests() -> void:
 	UpgradeManager.upgrades_comprados["delivery_online"] = true
 	GameManager.upgrades = ["delivery_online"]
 	DeliverySystem.unlock(false)
-	_check(DeliverySystem.debug_set_report([0, 3, 2]), "Relatório ativo deve ser configurável no teste de save.")
+	var delivery_matrix := DeliverySystem.current_matrix()
+	var delivery_info: Dictionary = DeliverySystem.current_delivery()
 	Saves.solicitar_save("teste_delivery_slot_1")
 	Saves.load_game(2)
 	Saves.load_game(1)
 	var delivery_active := ActiveExperience.is_upgrade_active("delivery_online")
 	_check(FeatureManager.has_feature(FeatureManager.FEATURE_DELIVERY) == delivery_active, "Save deve restaurar Delivery conforme a experiencia ativa.")
 	_check(DeliverySystem.state == DeliverySystem.State.WAITING_DECLARATION, "Save deve restaurar o estado do relatório ativo.")
-	_check(DeliverySystem.active_deliveries == [0, 3, 2], "Save deve restaurar as entregas do relatório ativo.")
+	_check(DeliverySystem.current_matrix() == delivery_matrix and DeliverySystem.current_delivery() == delivery_info, "Save restaura mapa, destino e id da entrega.")
 
 	Saves.delete_save(2)
 	_check(not Saves.has_save(2), "Apagar Slot 2 deve deixar o slot vazio.")
