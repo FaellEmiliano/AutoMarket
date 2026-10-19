@@ -2,13 +2,15 @@ extends Control
 
 # Only this rendering layer needs replacing when final sprites are ready.
 const COLORS := {
-	"road": Color("343942"), "intersection": Color("646a73"),
+	"grid": Color("252a30"),
+	"road": Color("343942"), "centerline": Color.WHITE,
 	"block": Color("527d49"), "barricade": Color("df7134"),
 	"hole": Color("56392b"), "driver": Color("438aef"),
 	"destination": Color("f6cf4b"), "route": Color("a2df79"),
 	"home": Color("354f86")
 }
-@export_range(0.1, 0.8) var street_width := 0.38
+@export_range(0.0, 4.0) var cell_gap := 1.0
+@export_range(0.5, 4.0) var centerline_width := 1.5
 @export_range(0.0, 12.0) var padding := 8.0
 var _view: Dictionary = {}
 
@@ -31,25 +33,29 @@ func _draw() -> void:
 		return
 	var step := extent / float(side)
 	var origin := (size - Vector2.ONE * extent) / 2.0
-	# Residential lots fill the spaces between the symmetric street grid.
-	draw_rect(Rect2(origin, Vector2.ONE * extent), COLORS.block)
+	# Every matrix position occupies an equally sized square, including streets.
+	draw_rect(Rect2(origin, Vector2.ONE * extent), COLORS.grid)
+	var gap := clampf(cell_gap, 0.0, step * 0.25)
+	var dimensions := Vector2.ONE * (step - gap)
 	for row in range(side):
 		for col in range(side):
-			if row % 2 == 1 and col % 2 == 1:
-				continue
 			var center := origin + Vector2(col + 0.5, row + 0.5) * step
-			var dimensions := Vector2.ONE * step * street_width
-			var color: Color = COLORS.intersection
-			if row % 2 == 1:
-				dimensions.y = step * (2.0 - street_width)
-				color = COLORS.road
-			elif col % 2 == 1:
-				dimensions.x = step * (2.0 - street_width)
-				color = COLORS.road
+			var color: Color = COLORS.road
+			if row % 2 == 1 and col % 2 == 1:
+				color = COLORS.block
 			draw_rect(Rect2(center - dimensions / 2.0, dimensions), color)
+			# One centered dash per street cell; both directions form a cross at intersections.
+			var line_width := minf(centerline_width, step * 0.1)
+			var half_dash := step * 0.32
+			if row % 2 == 0:
+				var half_horizontal := Vector2(half_dash, 0.0)
+				draw_line(center - half_horizontal, center + half_horizontal, COLORS.centerline, line_width)
+			if col % 2 == 0:
+				var half_vertical := Vector2(0.0, half_dash)
+				draw_line(center - half_vertical, center + half_vertical, COLORS.centerline, line_width)
 			if matrix[row][col] == 2:
-				var blockage: Color = COLORS.barricade if (row + col * 3) % 4 == 1 else COLORS.hole
-				draw_rect(Rect2(center - Vector2.ONE * step * 0.24, Vector2.ONE * step * 0.48), blockage)
+				var blockage_color: Color = COLORS.barricade if (row + col * 3) % 4 == 1 else COLORS.hole
+				_draw_marker(origin, step, Vector2(row, col), blockage_color, 0.48)
 	for cell in _view.get("route", []):
 		var center := origin + Vector2(cell[1] + 0.5, cell[0] + 0.5) * step
 		draw_rect(Rect2(center - Vector2.ONE * step * 0.09, Vector2.ONE * step * 0.18), COLORS.route)

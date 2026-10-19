@@ -86,7 +86,13 @@ disponíveis para compatibilidade, mas não avaliam as novas rotas.
 ## Renderização e futuras sprites
 
 Somente scenes/delivery/delivery_map_renderer.gd desenha o mapa.
-COLORS centraliza a paleta; street_width e padding configuram a geometria visual.
+COLORS centraliza a paleta; cell_gap e padding configuram a geometria visual.
+centerline_width controla as linhas brancas centrais tracejadas: horizontais e verticais
+se encontram nos cruzamentos, com os bloqueios e marcadores desenhados por cima.
+Ruas, cruzamentos, terrenos e bloqueios ocupam células quadradas de mesmo tamanho,
+com separação discreta para destacar a grade da matriz. Bloqueios preservam o
+fundo cinza da rua e recebem uma marcação central laranja (barricada) ou marrom
+(buraco), sem preencher a célula inteira.
 _draw desenha ruas, cruzamentos, terrenos, bloqueios e rota; _draw_marker desenha
 destino, centro e motorista. Substitua esses dois métodos por sprites/atlas quando
 estiverem prontos. O snapshot recebido por set_view já inclui matrix, destination,
